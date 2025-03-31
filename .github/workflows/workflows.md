@@ -93,3 +93,25 @@ doppler run -- act -j build
 
 ### Notes
 - As of Act version `0.2.75`, the `--inputs` flag only populates the `github.event.inputs` context, not the `inputs` context, despite PRs having been merged to support this. As a result, not all jobs will run correctly. Practically speaking, this currently only affects caching flags, as local publishing is not allowed. A workaround is to delete the `action/cache` using `rm -rf ~/.cache/actcache` when you need to clear the cache (such as when testing local changes without committing).
+
+# Dependabot
+
+Dependabot is used automate dependency updates. It is confiured to:
+
+- Create pull requests for updates grouped by major and minor/patch versions
+- Apply cooldown periods based on update significance
+- Skip Python CI builds for devcontainer and Docker updates
+
+## Monitored Ecosystems
+
+- **DevContainers**: Updates for devcontainer.json configurations
+- **GitHub Actions**: Updates for action versions in workflow files
+- **Docker**: Updates for base images in Dockerfiles within .devcontainer and dockerfiles directories
+- **Python**: Updates for dependencies in pyproject.toml (via pip ecosystem)
+
+## Update Schedule and Grouping
+
+All ecosystems are scheduled for weekly updates with the following grouping strategy:
+
+- **Minor/patch updates** are grouped together to reduce PR volume
+- **Security updates** are grouped separately to prioritize them

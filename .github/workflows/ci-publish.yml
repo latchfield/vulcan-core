@@ -3,22 +3,22 @@
 name: CI Publish
 run-name: Publish of ${{ github.ref_name }} to ${{ inputs.environment || 'test.pypi.org' }} by ${{ github.actor }}
 
-on: 
+on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'PyPI Environment'
+        description: "PyPI Environment"
         required: true
-        default: 'test.pypi.org'
+        default: "test.pypi.org"
         type: choice
         options:
-        - test.pypi.org
-        - pypi.org
+          - test.pypi.org
+          - pypi.org
       skip_cache:
-        description: 'Skip Commit SHA Cache'
+        description: "Skip Commit SHA Cache"
         required: true
         default: false
-        type: boolean        
+        type: boolean
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -36,7 +36,7 @@ jobs:
       - name: Sparse checkout codebase
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
         with:
-          sparse-checkout: 'pyproject.toml'
+          sparse-checkout: "pyproject.toml"
           sparse-checkout-cone-mode: false
 
       - name: Validate configuration
@@ -53,7 +53,7 @@ jobs:
             echo "::error::Publishing must be done from a version tag."
             exit 1
           fi
-          
+
           # Ensure the version in pyproject.toml matches the git tag
           GIT_TAG_VERSION=${GITHUB_REF#refs/tags/v}
           PYPROJECT_VERSION=$(grep -Po '(?<=^version = ")[^"]*' pyproject.toml)
@@ -67,7 +67,7 @@ jobs:
           echo "repo_name=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
           echo "project_name=${PYPROJECT_NAME}" >> $GITHUB_OUTPUT
 
-      - run: ls -la    
+      - run: ls -la
 
       - name: Lookup build cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
@@ -96,12 +96,13 @@ jobs:
     runs-on: ubuntu-22.04
     if: ${{ !failure() && !cancelled() }}
     needs: [prepublish, rebuild]
-    environment:
-      name: ${{ inputs.environment }}
-      url: https://${{ inputs.environment }}/p/${{ needs.prepublish.outputs.project_name }}
+    # Doesn't seem useful for packages, adds noise, and apparently old deployments are not easy to remove
+    # environment:
+    #   name: ${{ inputs.environment }}
+    #   url: https://${{ inputs.environment }}/p/${{ needs.prepublish.outputs.project_name }}
     permissions:
       id-token: write # Needed for trusted publishing
-    steps:         
+    steps:
       - name: Restore build cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
         id: build
@@ -109,7 +110,7 @@ jobs:
           path: ./dist
           key: build-${{ github.sha }}
           fail-on-cache-miss: true
-  
+
       # TODO: Add test reports, etc to artifacts
       - name: Store artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4.6.2

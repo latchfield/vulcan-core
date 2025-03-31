@@ -1,105 +1,68 @@
-# Python Repo Template
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2025 Latchfield Technologies http://latchfield.com -->
+<img alt="Vulcan Logo" src="https://latchfield.com/vulcan/assets/images/vulcan-logo.svg" height="100px">
 
-This is a template for a Python repository following organizational conventions and best practices.
+# AI-Hybrid Rules Engine for Logical Reasoning
+![Version](https://img.shields.io/pypi/v/vulcan_core)
 
-After creating a repo using this template, configure the `pyproject.toml` file with the appropriate metadata for your project.
+Vulcan is an AI-hybrid rules engine designed for advanced automated reasoning. It combines the power of rule-based decision systems with LLMs (Large Language Models) for improved consistency and explainability in AI-powered systems.
 
-Once complete, remove the `template-configuration-needed` file and rebuild your dev container.
-
-## How to clone this template for a new project
-This project is not set as GitHub template due to the banner polution it causes for attribution.
-Instead of creating new repos using the template function in the GitHub web UI, create an _empty_ repo and clone the
-template project as follows (replacing `project-name` accordingly):
+Learn more about Vulcan at [https://latchfield.com/vulcan](https://latchfield.com/vulcan), or jump in with:
 
 ```bash
-PROJECT_NAME="project-name"
-git clone git@github.com:latchfield/template-python.git ${PROJECT_NAME}
-cd ${PROJECT_NAME}
-git remote rename origin template
-git remote add origin git@github.com:latchfield/${PROJECT_NAME}.git
-git reset --soft $(git rev-list --max-parents=0 HEAD)
-git commit -m "Squashed template"
-git push -u origin main
-git branch --track template template/main
-git config remote.template.push refs/heads/template:refs/heads/main
-git config push.default current
+poetry add vulcan-core
+# or
+pip install vulcan-core
 ```
 
-## How to merge changes from the template into your project
-If you want to merge changes from the template into your project, you can do so as follows:
+To gain your bearings, read the documentation for guides and API reference: [https://latchfield.com/vulcan/docs](https://latchfield.com/vulcan/docs).
 
-```bash
-git fetch template
+## Why use Vulcan?
+Vulcan strives to improve AI reliability and explainability by explicitly separating computational logic from LLM prediction through declarative rules and microprompting. Vulcan provides developers with a toolkit to create, manage, and execute rules with seamless integration with LLMs and vector databases.
 
-# Latest
-git merge --no-commit template/main
+### Features:
+* **AI-Hybrid Rules** - Combine deterministic logic with LLMs and vector databases
+* **Transparent Decision-Making** - Full explainability of how decisions are made
+* **Developer-Friendly API** - Intuitive interfaces for rule creation and management
+* **Platform Flexibility** - Works across various environments and integrates with existing tools
 
-# Specific version tag (e.g.)
-git merge --no-commit template/1.0.0
+### Simple Example:
+Turn your lengthy unpredictable prompts:
+
+```text
+As a bakery, I want to buy 10 apples if I have less than 10 in inventory, but only if my supplier has apples used for baking in stock. Given I have 9 apples, and my supplier has "Honeycrisp", how many apples should I order?
 ```
 
-# Development
-## Testing
-### Run Tests
-#### Non Integration Tests:
-```bash
-pytest
+Into repeatable, consistent, and explainable rules:
+
+```python
+# Use natural language for prediction and data retrieval:
+engine.rule(
+    when(f"Are {Apple.kind} considered good for baking?"),
+    then(Apple(baking=True)),
+)
+
+# Use computed logic for operations that must be correct:
+engine.rule(
+    when(Apple.baking && lambda: Inventory.apples < 10),
+    then(Order(apples=10)),
+)
+
+# Intelligent on-demand rule evaluation:
+engine.fact(Inventory(apples=9))
+engine.fact(Apple(kind="Honeycrisp"))
 ```
 
-#### Integration Tests:
-```bash
-pytest --integration
-```
+## Get Involved!
+We welcome contributions from the community to help make Vulcan even better:
 
-## Dependency Management
-### Review major updates
-```bash
-poetry show --outdated --latest -T
-```
+* **Contribute Code** - Check out the [contribution guidelines](https://github.com/latchfield/vulcan/blob/main/CONTRIBUTING.md) for information on how to submit pull requests
+* **Report Issues** - Found a bug or have a feature request? Open an issue on our [GitHub repository](https://github.com/latchfield/vulcan-core/issues/)
+* **Join the Community** - Connect with other Vulcan users and developers on [GitHub Discussions](https://github.com/latchfield/vulcan-core/discussions)
 
-### Update Dependencies
-```bash
-poetry up
-```
+## Additional Resources
+Learn more about Vulcan:
 
-### Update only lockfile
-```bash
-poetry update
-```
-
-### Audit Security Vulnerabilities
-```bash
-poetry audit
-```
-
-### Verify Dependencies
-```bash
-deptry src
-```
-
-### Check for CVEs
-```bash
-poetry audit
-```
-
-### Check for insecure coding
-*Note: Mostly replaced by ruff, but good for reporting*
-```bash
-bandit -r src
-```
-
-### Check for unused dependencies
-```bash
-deptry src
-```
-
-## Misc Commands
-### Clear pycache
-```bash
-find . -type d -name __pycache__ -exec rm -rf {} +
-```
-
-### Show compact git history
-```bash
-git --no-pager log --oneline --graph --all
-```
+* [Core Concepts](https://latchfield.com/vulcan/docs/concepts) - Understand the fundamental principles of Vulcan
+* [Guides & Tutorials](https://latchfield.com/vulcan/docs/guides/quick-start/) - Step-by-step instructions for common use cases
+* [API Reference](https://latchfield.com/vulcan/docs/) - Detailed information about the Vulcan API

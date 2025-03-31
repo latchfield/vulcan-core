@@ -3,19 +3,21 @@
 # https://containers.dev/guide/dependabot
 
 version: 2
+enable-beta-ecosystems: true
 updates:
   # Devcontainers
-  - package-ecosystem: devcontainers
+  - package-ecosystem: "devcontainers"
     directory: "/"
     schedule:
       interval: weekly
-    groups:
-      devcontainers-minor:
-        update-types: [minor, patch]
-      devcontainers-security:
-        patterns: ["*"]
-        applies-to: security-updates
-        
+    # Groups are apparently broken for devcontainers: https://github.com/dependabot/dependabot-core/issues/11790
+    # groups:
+    #   devcontainers-minor:
+    #     update-types: [minor, patch]
+    #   devcontainers-security:
+    #     patterns: ["*"]
+    #     applies-to: security-updates
+
   # GitHub Actions
   - package-ecosystem: github-actions
     directory: "/"
@@ -30,7 +32,9 @@ updates:
 
   # Dockerfiles
   - package-ecosystem: docker
-    directory: "/"
+    directories:
+      - "/.devcontainer"
+      - "/dockerfiles/**/*"
     schedule:
       interval: weekly
     groups:
@@ -46,8 +50,13 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 13
+      semver-patch-days: 7
     groups:
-      python-minor:        
+      python-minor:
         dependency-type: production
         applies-to: version-updates
         update-types: [minor, patch]

@@ -6,17 +6,17 @@ run-name: Build of ${{ github.ref_name }} by ${{ github.actor }}
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
   workflow_call:
     inputs:
       skip_cache:
-        description: 'Skip Commit SHA Cache'
+        description: "Skip Commit SHA Cache"
         type: boolean
   workflow_dispatch:
     inputs:
       skip_cache:
-        description: 'Skip Commit SHA Cache'
+        description: "Skip Commit SHA Cache"
         type: boolean
 
 concurrency:
@@ -27,11 +27,12 @@ jobs:
   prebuild:
     name: Prebuild Checks
     runs-on: ubuntu-22.04
+    if: ${{ github.event_name != 'pull_request' || (!startsWith(github.head_ref, 'dependabot/devcontainers/') && !startsWith(github.head_ref, 'dependabot/docker/')) }}
     concurrency:
       group: prebuild-${{ github.sha }}
     outputs:
-      tests-cache-hit: ${{ steps.tests.outputs.cache-hit && !inputs.skip_cache }}    
-      security-cache-hit: ${{ steps.security.outputs.cache-hit && !inputs.skip_cache }}    
+      tests-cache-hit: ${{ steps.tests.outputs.cache-hit && !inputs.skip_cache }}
+      security-cache-hit: ${{ steps.security.outputs.cache-hit && !inputs.skip_cache }}
       analysis-cache-hit: ${{ steps.analysis.outputs.cache-hit && !inputs.skip_cache }}
       build-cache-hit: ${{ steps.build.outputs.cache-hit && !inputs.skip_cache }}
     steps:
@@ -57,15 +58,15 @@ jobs:
         with:
           lookup-only: true
           path: ./reports/analysis/*
-          key: analysis-${{ github.sha }}          
-     
+          key: analysis-${{ github.sha }}
+
       - name: Lookup build cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
         id: build
         with:
           lookup-only: true
           path: |
-            ./dist     
+            ./dist
           key: build-${{ github.sha }}
 
       - name: Evaluate cache status
@@ -136,7 +137,7 @@ jobs:
       # For security and cost reasons, don't run integration tests on PRs
       - name: Run unit and integration tests
         if: ${{ !steps.tests.outputs.cache-hit && github.event_name != 'pull_request' }}
-        shell: bash        
+        shell: bash
         run: poetry run pytest --cov-report lcov:./reports/tests/coverage.lcov --plus_integration
 
   security:
@@ -175,7 +176,7 @@ jobs:
       - name: Check for outdated dev/test dependencies
         if: ${{ !steps.security.outputs.cache-hit }}
         run: poetry show -n --outdated --latest --top-level --only=dev,test | tee ./reports/security/outdated-dependencies-dev.txt | awk 'NF {print "::notice title=Outdated dev/test Dependency::" $0}'
-        shell: bash        
+        shell: bash
 
       # TODO: Need to find a replacement for poetry audit plugin
       # - name: Check for CVEs in dependencies
@@ -186,8 +187,8 @@ jobs:
       - name: Run security checks
         if: ${{ !steps.security.outputs.cache-hit }}
         run: poetry run bandit -r src | tee ./reports/security/code-scan.txt
-        shell: bash        
-        
+        shell: bash
+
   analysis:
     name: Static Analysis
     runs-on: ubuntu-22.04
@@ -214,7 +215,7 @@ jobs:
 
       - name: Prepare the Python environment
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        uses: ./.github/actions/prepare        
+        uses: ./.github/actions/prepare
 
       - name: Check for unused dependencies
         if: ${{ !steps.analysis.outputs.cache-hit }}
@@ -229,7 +230,7 @@ jobs:
       - name: Perform Pyright typing checks
         if: ${{ !steps.analysis.outputs.cache-hit }}
         env:
-          PYRIGHT_PYTHON_PYLANCE_VERSION: latest-release  
+          PYRIGHT_PYTHON_PYLANCE_VERSION: latest-release
         run: poetry run pyright ./src | tee ./reports/analysis/typing.txt
         shell: bash
 
@@ -237,7 +238,7 @@ jobs:
     name: Build Package
     runs-on: ubuntu-22.04
     needs: [prebuild, tests, security, analysis]
-    if: ${{ !failure() && !cancelled() && needs.prebuild.outputs.build-cache-hit != 'true' }}
+    if: ${{ !failure() && !cancelled() && needs.prebuild.outputs.build-cache-hit != 'true' && needs.prebuild.result != 'skipped' }}
     concurrency:
       group: build-${{ github.sha }}
     steps:
@@ -248,7 +249,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         with:
           path: |
-            ./dist     
+            ./dist
           key: build-${{ github.sha }}
 
       - name: Report on cache

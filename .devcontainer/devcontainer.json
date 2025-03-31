@@ -26,7 +26,8 @@
 				"stkb.rewrap",
 				"tamasfe.even-better-toml",
 				"redhat.vscode-yaml",
-				"darkriszty.markdown-table-prettify"
+				"darkriszty.markdown-table-prettify",
+				"GitHub.vscode-github-actions"
 			]
 		}
 	},

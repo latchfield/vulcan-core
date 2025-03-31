@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Latchfield Technologies http://latchfield.com
-name: 'Prepare the Python environment'
-description: 'Prepares the Python environment leveraging cache where possible'
+name: "Prepare the Python environment"
+description: "Prepares the Python environment leveraging cache where possible"
 
 runs:
   using: "composite"
-  steps:    
+  steps:
     - name: Configure system
       id: config
       shell: bash
@@ -38,7 +38,7 @@ runs:
           /root/.local/pipx/venvs
           /root/.local/bin/poetry
           /opt/pipx/venvs
-          /opt/pipx_bin            
+          /opt/pipx_bin
         key: pipx-poetry-${{ steps.config.outputs.poetry_version }}
 
     - name: Install Poetry with pipx
@@ -50,8 +50,8 @@ runs:
     - name: Setup Python
       uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 #v5.5.0
       with:
-        python-version-file: 'pyproject.toml'
-        cache: 'poetry'
+        python-version-file: "pyproject.toml"
+        cache: "poetry"
 
     - name: Install Python dependencies
       shell: bash
