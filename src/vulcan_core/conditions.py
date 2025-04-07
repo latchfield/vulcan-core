@@ -8,11 +8,11 @@ import re
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from functools import lru_cache
 from string import Formatter
 from typing import TYPE_CHECKING
 
 from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from vulcan_core.actions import ASTProcessor
@@ -21,6 +21,11 @@ from vulcan_core.models import ConditionCallable, DeclaresFacts, Fact, FactHandl
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from langchain_core.language_models import BaseChatModel
     from langchain_core.runnables import RunnableSerializable
+
+import importlib.util
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,10 +246,19 @@ def ai_condition(model: BaseChatModel, inquiry: str) -> AICondition:
     return AICondition(chain=chain, system_template=system, inquiry_template=inquiry, facts=facts)
 
 
-default_model = ChatOpenAI(model="gpt-4o-mini", temperature=0, max_tokens=100)  # type: ignore[call-arg] - pyright can't see the args for some reason
+@lru_cache(maxsize=1)
+def _detect_default_model():
+    # TODO: Expand this to detect other providers
+    if importlib.util.find_spec("langchain_openai"):
+        from langchain_openai import ChatOpenAI
+        logger.debug("Using OpenAI as the default LLM model provider.")
+        return ChatOpenAI(model="gpt-4o-mini", temperature=0, max_tokens=100)  # type: ignore[call-arg] - pyright can't see the args for some reason
+    else:
+        logger.warning("Default LLM model provider not detected.")
+        return None
 
 
-def condition(func: ConditionCallable | str) -> Condition:
+def condition(func: ConditionCallable | str, **kwargs) -> Condition:
     """
     Creates a Condition object from a lambda or function. It performs limited static analysis of the code to ensure
     proper usage and discover the facts/attributes accessed by the condition. This allows the rule engine to track
@@ -287,7 +301,8 @@ def condition(func: ConditionCallable | str) -> Condition:
         processed = ASTProcessor[ConditionCallable](func, condition, bool)
         return Condition(processed.facts, processed.func)
     else:
-        return ai_condition(default_model, func)
+        model = kwargs.get("model", _detect_default_model())
+        return ai_condition(model, func)
 
 
 # TODO: Create a convenience function for creating OnFactChanged conditions

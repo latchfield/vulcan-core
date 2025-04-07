@@ -108,8 +108,17 @@ def test_ai_simple_condition_true(model: BaseChatModel, fact_a_instance: FactA, 
     assert cond(fact_a_instance, fact_b_instance) is True
 
 
+@pytest.mark.integration
 def test_ai_missing_fact(model: BaseChatModel):
     # TODO: Determine the difference between tool calls and non-tool calls
     # We shouldn't raise an exception if tools are being used
     with pytest.raises(MissingFactError):
         ai_condition(model, "Is the sky blue?")
+
+
+@pytest.mark.integration
+def test_condition_with_custom_model(model: BaseChatModel, fact_a_instance: FactA, fact_b_instance: FactB):
+    cond = condition(f"Are {FactA.feature} and {FactB.feature} both on the same planet?", model=model)
+
+    assert set(cond.facts) == {"FactA.feature", "FactB.feature"}
+    assert cond(fact_a_instance, fact_b_instance) is False
