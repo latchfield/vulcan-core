@@ -152,16 +152,35 @@ class ASTProcessor[T: Callable]:
             raise ASTProcessingError(msg)
 
         # The source includes the entire line of code (e.g., assignment and condition() call)
-        # We need to parse parentheses to extract just the lambda expression, handling any
-        # nested parentheses in the lambda's body correctly
+        # We need to extract just the lambda expression, handling nested structures correctly
         source = self.source[lambda_start:]
+
+        # Track depth of various brackets to ensure we don't split inside valid nested structures apart from trailing
+        # arguments within the condition() call
         paren_level = 0
+        bracket_level = 0
+        brace_level = 0
+
         for i, char in enumerate(source):
             if char == "(":
                 paren_level += 1
-            elif char == ")" and paren_level > 0:
-                paren_level -= 1
-            elif char == ")" and paren_level == 0:
+            elif char == ")":
+                if paren_level > 0:
+                    paren_level -= 1
+                elif paren_level == 0:  # End of expression in a function call
+                    return source[:i]
+            elif char == "[":
+                bracket_level += 1
+            elif char == "]":
+                if bracket_level > 0:
+                    bracket_level -= 1
+            elif char == "{":
+                brace_level += 1
+            elif char == "}":
+                if brace_level > 0:
+                    brace_level -= 1
+            # Only consider comma as a separator when not inside any brackets
+            elif char == "," and paren_level == 0 and bracket_level == 0 and brace_level == 0:
                 return source[:i]
 
         return source

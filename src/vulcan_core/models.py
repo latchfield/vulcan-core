@@ -258,3 +258,6 @@ class RetrieverAdapter(Similarity):
 
     def __len__(self) -> int:
         raise NotImplementedError
+
+    def __str__(self) -> str:
+        return f"RetrieverAdapter(search_type={self.store.search_type})"

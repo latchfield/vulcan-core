@@ -94,6 +94,7 @@
     "editor.suggest.localityBonus": true,
     "editor.inlineSuggest.showToolbar": "onHover",
 
+    "chat.agent.enabled": true,
     "github.copilot.chat.generateTests.codeLens": true,
-    "github.copilot.nextEditSuggestions.enabled": true,
+    "github.copilot.nextEditSuggestions.enabled": false
 }

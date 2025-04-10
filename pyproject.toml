@@ -20,7 +20,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-version = "1.0.0" # Update manually, or use plugin
+version = "1.1.0" # Update manually, or use plugin
 packages = [{ include = "vulcan_core", from="src" }]
 requires-poetry = "~2.1.1"
 classifiers = [
@@ -83,6 +83,9 @@ branch = true # Could be an issue if true for native decoration: https://github.
 pydantic = "~2.10.6"
 langchain = { version = "~0.3.20", optional = true } 
 langchain-openai = { version = "~0.3.9", optional = true }
+
+[tool.poetry.extras]
+openai = ["langchain", "langchain-openai"]
 
 [project.optional-dependencies]
 openai = ["langchain", "langchain-openai"]
