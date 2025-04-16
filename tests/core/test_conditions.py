@@ -9,6 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
 from vulcan_core import Condition, Fact, MissingFactError, condition
+from vulcan_core.ast_utils import CallableSignatureError
 from vulcan_core.conditions import ai_condition
 
 
@@ -142,3 +143,8 @@ def test_aicondition_model_override():
     cond2 = custom_condition(f"Are {FactA.feature} and {FactB.feature} both on the same planet?", model=model2)
 
     assert cond1.model != cond2.model  # type: ignore
+
+
+def test_lambda_param_check():
+    with pytest.raises(CallableSignatureError):
+        condition(lambda x: Foo.baz)

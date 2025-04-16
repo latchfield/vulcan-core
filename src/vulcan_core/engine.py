@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from vulcan_core.ast_utils import NotAFactError
 from vulcan_core.models import DeclaresFacts, Fact
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
@@ -104,6 +105,10 @@ class RuleEngine:
 
         if isinstance(fact, partial):
             fact_name = fact.func.__name__
+            fact_class = fact.func
+            if not issubclass(fact_class, Fact):  # type: ignore
+                raise NotAFactError(fact_class)
+
             if fact_name in self._facts:
                 self._facts[fact_name] |= fact
             else:
@@ -113,6 +118,10 @@ class RuleEngine:
                     msg = f"Fact '{fact_name}' is missing and lacks sufficient defaults to create from partial: {fact}"
                     raise InternalStateError(msg) from err
         else:
+            fact_class = type(fact)
+            if not issubclass(fact_class, Fact):
+                raise NotAFactError(fact_class)
+
             self._facts[type(fact).__name__] = fact
 
     def rule[T: Fact](self, *, name: str | None = None, when: Expression, then: Action, inverse: Action | None = None) -> None:

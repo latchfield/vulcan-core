@@ -5,6 +5,7 @@ import _string  # type: ignore
 import inspect
 import string
 from dataclasses import dataclass, field
+from functools import partial
 
 import pytest
 from langchain.schema import Document
@@ -111,3 +112,31 @@ def test_format2():
     d = {"a": 1, "b": ProxyLazyLookup()}
     s = "{a} {b.c}"
     DeferredFormatter().vformat(s, [], d)
+
+
+def test_union_incompatible_facts():
+    class Foo(Fact):
+        foo: str
+
+    class Bar(Fact):
+        bar: str
+        baz: int = 0
+
+    foo = Foo(foo="foo")
+    bar = Bar(bar="bar")
+
+    with pytest.raises(TypeError):
+        foo | bar  # type: ignore
+
+def test_union_incompatible_partial_facts():
+    class Foo(Fact):
+        foo: str
+
+    class Bar(Fact):
+        bar: str
+        baz: int = 0
+
+    foo = Foo(foo="foo")
+
+    with pytest.raises(TypeError):
+        foo | partial(Bar, baz=1)  # type: ignore        

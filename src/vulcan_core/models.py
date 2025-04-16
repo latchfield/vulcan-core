@@ -133,8 +133,16 @@ class Fact(ImmutableAttrAsDict, metaclass=FactMetaclass):
         lefthand operand is created with the partial Fact's keywords applied.
         """
         if isinstance(other, Fact):
+            if type(self) is not type(other):
+                msg = f"Union operator disallowed for types {type(self).__name__} and {type(other).__name__}"
+                raise TypeError(msg)
+
             return other  # type: ignore
         else:
+            if type(self) is not other.func:
+                msg = f"Union operator disallowed for types {type(self).__name__} and {other.func}"
+                raise TypeError(msg)
+
             new_fact = copy(self)
             for kw, value in other.keywords.items():
                 object.__setattr__(new_fact, kw, value)

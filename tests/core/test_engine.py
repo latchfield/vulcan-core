@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Latchfield Technologies http://latchfield.com
 
+from dataclasses import dataclass
 from functools import partial
 
 import pytest
 
 from vulcan_core import Fact, InternalStateError, RecursionLimitError, RuleEngine, action, condition
+from vulcan_core.ast_utils import NotAFactError
 
 
 class Foo(Fact):
@@ -205,6 +207,17 @@ def test_initialize_fact_autocreate():
     result = engine[Foo]
     assert result.baz is False
     assert result.bol is True
+
+
+def test_not_a_fact():
+    @dataclass()
+    class NotAFact:
+        some_value: int = 0
+
+    engine = RuleEngine()
+
+    with pytest.raises(NotAFactError):
+        engine.fact(NotAFact())  # type: ignore
 
 
 @pytest.mark.integration
