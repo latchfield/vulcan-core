@@ -11,7 +11,7 @@ from typing import Any, NoReturn
 
 @dataclass(frozen=True)
 class WithContext:
-    """Applys a context manager as a decorator.
+    """Applies a context manager as a decorator.
 
     @WithContext(suppress(Exception))
         def foo():

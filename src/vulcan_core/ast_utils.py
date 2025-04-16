@@ -24,7 +24,7 @@ class ContractError(Exception):
 
 class ScopeAccessError(ContractError):
     """Raised when a callable attempts to access instances not passed as parameters or when decorated functions attempt
-    a toccess class attributes instead of parameter instance attributes ."""
+    to access class attributes instead of parameter instance attributes."""
 
 
 class NotAFactError(ContractError):

@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True, slots=True)
 class Expression(DeclaresFacts):
     """
-    Abstract base class for defining deferred logical expressions. It captures the assosciation of logic with Facts so
+    Abstract base class for defining deferred logical expressions. It captures the association of logic with Facts so
     that upon a Fact update, the logical expression can be selectively evaluated. It also provides a set of logical
     operators for combining conditions, resulting in a new CompoundCondition.
     """
@@ -63,7 +63,7 @@ class Expression(DeclaresFacts):
 @dataclass(frozen=True, slots=True)
 class Condition(FactHandler[ConditionCallable, bool], Expression):
     """
-    A Condition is a container to defer logical epxressions against a supplied Fact. The expression can be inverted
+    A Condition is a container to defer logical expressions against a supplied Fact. The expression can be inverted
     using the `~` operator. Conditions also support the '&',  '|', and '^' operators for combinatorial logic.
 
     Attributes:

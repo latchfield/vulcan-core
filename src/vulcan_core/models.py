@@ -120,7 +120,7 @@ class FactMetaclass(type):
 
 class Fact(ImmutableAttrAsDict, metaclass=FactMetaclass):
     """
-    An abstract class that must be used define rule engine fact schemas and instantiate data into working memory. Facts
+    An abstract class that must be used to define rule engine fact schemas and instantiate data into working memory. Facts
     may be combined with partial facts of the same type using the `|` operator. This is useful for Actions that only
     need to update a portion of working memory.
 

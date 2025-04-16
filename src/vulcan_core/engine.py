@@ -115,17 +115,18 @@ class RuleEngine:
         else:
             self._facts[type(fact).__name__] = fact
 
-    def rule[T: Fact](self, *, name: str | None = None, when: Expression, then: Action, inverse: Action | None = None):
+    def rule[T: Fact](self, *, name: str | None = None, when: Expression, then: Action, inverse: Action | None = None) -> None:
         """
         Convenience method for adding a rule to the rule engine.
 
         Args:
-          name (Optional[str]): The name of the rule. Defaults to None.
-          when (Expression): The condition that triggers the rule.
-          then (Action): The action to be executed when the condition is met.
-          inverse (Optional[Action]): The action to be executed when the condition is not met. Defaults to None.
+            name (Optional[str]): The name of the rule. Defaults to None.
+            when (Expression): The condition that triggers the rule.
+            then (Action): The action to be executed when the condition is met.
+            inverse (Optional[Action]): The action to be executed when the condition is not met. Defaults to None.
 
-        Returns: None
+        Returns:
+            None
         """
         rule = Rule(name, when, then, inverse)
 
