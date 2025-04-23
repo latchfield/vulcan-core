@@ -8,8 +8,8 @@
 			"context": "."
 		},	
 	"features": {
-		"ghcr.io/devcontainers/features/github-cli:1.0.13": {},
-		"ghcr.io/devcontainers/features/docker-in-docker:2.12.1": {
+		"ghcr.io/devcontainers/features/github-cli:1.0.14": {},
+		"ghcr.io/devcontainers/features/docker-in-docker:2.12.2": {
 			"moby": true
 		}
 		// "ghcr.io/devcontainers-contrib/features/poetry:2": {} // Need to fork and add plugin install
