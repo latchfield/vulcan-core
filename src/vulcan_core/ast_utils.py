@@ -128,7 +128,7 @@ class ASTProcessor[T: Callable]:
         else:
             # Get function metadata and validate signature
             hints = get_type_hints(self.func)
-            params = inspect.signature(self.func).parameters
+            params = inspect.signature(self.func).parameters # type: ignore
             self._validate_signature(hints, params)
 
             # Process attributes

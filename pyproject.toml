@@ -105,5 +105,5 @@ deptry = "~0.23.0"
 langchain-chroma = "~0.2.3" # On py3.13 needs a compiler installed until transitive dependency numpy 1.26.4 has a whl
 ipykernel = "~6.29.5"
 ruff = "~0.11.6"
-pyright = {extras = ["nodejs"], version = "~1.1.399"}
+pyright = {extras = ["nodejs"], version = "1.1.400"}
 twine = "~6.1.0"
