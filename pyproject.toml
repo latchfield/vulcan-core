@@ -93,17 +93,17 @@ openai = ["langchain", "langchain-openai"]
 [tool.poetry.group.test.dependencies]
 pytest = "~8.3.5"
 pytest-asyncio = "~0.26.0"
-pytest-timeout = "~2.3.1"
+pytest-timeout = "~2.4.0"
 pytest-cov = "~6.1.1"
 pytest-xdist = "~3.6.1"
-hypothesis = "~6.130.13"
+hypothesis = "~6.131.21"
 doppler-env = "~0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 bandit = "~1.8.3"
 deptry = "~0.23.0"
-langchain-chroma = "~0.2.3" # On py3.13 needs a compiler installed until transitive dependency numpy 1.26.4 has a whl
+langchain-chroma = "~0.2.4" # On py3.13 needs a compiler installed until transitive dependency numpy 1.26.4 has a whl
 ipykernel = "~6.29.5"
-ruff = "~0.11.6"
-pyright = {extras = ["nodejs"], version = "1.1.400"}
+ruff = "~0.11.11"
+pyright = {extras = ["nodejs"], version = "1.1.401"}
 twine = "~6.1.0"
