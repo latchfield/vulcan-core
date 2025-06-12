@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Latchfield Technologies http://latchfield.com
 
+from dataclasses import dataclass
 from functools import partial
 from unittest.mock import Mock
 
@@ -34,6 +35,13 @@ class FactC(Fact):
     feature: str = "Pacific"
 
 
+@dataclass(frozen=True, slots=True)
+class FailCondition(Condition):
+    def __call__(self, *args: Fact) -> bool:
+        msg = "This condition should never be evaluated."
+        raise AssertionError(msg)
+
+
 @pytest.fixture
 def foo_instance():
     return Foo()
@@ -57,6 +65,7 @@ def fact_b_instance():
 @pytest.fixture
 def custom_model():
     return ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.1, max_tokens=1000)  # type: ignore[call-arg] - pyright can't see the args for some reason
+
 
 def test_condition_lambda(foo_instance: Foo, bar_instance: Bar):
     cond = condition(lambda: Foo.baz and Bar.biz)
@@ -114,6 +123,24 @@ def test_invert_condition(foo_instance: Foo):
 
     assert inverted.facts == cond.facts
     assert inverted(foo_instance) == (not cond(foo_instance))
+
+
+def test_short_circuit_condition(foo_instance: Foo):
+    true_condition = condition(lambda: True)
+    obscured_condition = FailCondition(facts=("Foo.bol",), func=lambda: True)
+
+    cond1 = true_condition | obscured_condition
+    cond2 = ~true_condition & obscured_condition
+    cond3 = ~true_condition ^ obscured_condition
+
+    result1 = cond1()
+    result2 = cond2()
+
+    assert result1 is True
+    assert result2 is False
+
+    with pytest.raises(AssertionError):
+        cond3()
 
 
 @pytest.mark.integration

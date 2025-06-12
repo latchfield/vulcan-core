@@ -123,14 +123,14 @@ class CompoundCondition(Expression):
         right_args = self._pick_args(self.right, args)
 
         left_result = self.left(*left_args)
-        right_result = self.right(*right_args)
+        # Be sure to evaluate the right condition as a function call to preserve short-circuit evaluation
 
         if self.operator == Operator.AND:
-            result = left_result and right_result
+            result = left_result and self.right(*right_args)
         elif self.operator == Operator.OR:
-            result = left_result or right_result
+            result = left_result or self.right(*right_args)
         elif self.operator == Operator.XOR:
-            result = left_result ^ right_result
+            result = left_result ^ self.right(*right_args)
         else:
             msg = (
                 f"Operator {self.operator} not implemented"  # pragma: no cover - Saftey check for future enum additions
