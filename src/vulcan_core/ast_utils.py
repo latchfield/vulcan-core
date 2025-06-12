@@ -149,7 +149,7 @@ class ASTProcessor[T: Callable]:
             self.facts = tuple(facts)
 
     def _get_lambda_source(self) -> str:
-        """Get single and multi-line lambda source using AST parsing of the siource file."""
+        """Get single and multi-line lambda source using AST parsing of the source file."""
         try:
             # Get caller frame to find the source file
             frame = inspect.currentframe()
