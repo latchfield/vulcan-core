@@ -87,6 +87,27 @@ def test_complex_lambda():
     assert set(cond.facts) == {"Foo.baz", "Bar.biz", "Foo.bol"}
 
 
+def test_multiline_lambda(foo_instance: Foo, bar_instance: Bar):
+    # Turn formatting off to ensure test case
+    # fmt: off
+    cond1 = condition(lambda: Foo.baz
+                        and Bar.biz)
+    # fmt: on
+
+    # fmt: off
+    cond2 = condition(
+        lambda: Foo.baz
+                and Bar.biz
+        )
+    # fmt: on
+
+    result1 = cond1(foo_instance, bar_instance)
+    result2 = cond2(foo_instance, bar_instance)
+
+    assert not result1
+    assert not result2
+
+
 def test_invert_condition(foo_instance: Foo):
     cond = condition(lambda: Foo.baz)
     inverted = ~cond

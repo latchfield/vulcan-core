@@ -3,6 +3,7 @@
 
 import ast
 import inspect
+import re
 import textwrap
 from ast import Attribute, Module, Name, NodeTransformer, NodeVisitor
 from collections.abc import Callable
@@ -101,7 +102,11 @@ class ASTProcessor[T: Callable]:
             self.source = self.func.__source__
         else:
             try:
-                self.source = textwrap.dedent(inspect.getsource(self.func))
+                if self.is_lambda:
+                    self.source = self._get_lambda_source()
+                    self.source = self._normalize_lambda_source()
+                else:
+                    self.source = textwrap.dedent(inspect.getsource(self.func))
             except OSError as e:
                 if str(e) == "could not get source code":
                     msg = "could not get source code. Try recursively deleting all __pycache__ folders in your project."
@@ -110,7 +115,6 @@ class ASTProcessor[T: Callable]:
                     raise
             self.func.__source__ = self.source
 
-        self.source = self._extract_lambda_source() if self.is_lambda else self.source
         self.tree = ast.parse(self.source)
 
         # Peform basic AST checks and attribute discovery
@@ -128,7 +132,7 @@ class ASTProcessor[T: Callable]:
         else:
             # Get function metadata and validate signature
             hints = get_type_hints(self.func)
-            params = inspect.signature(self.func).parameters # type: ignore
+            params = inspect.signature(self.func).parameters  # type: ignore
             self._validate_signature(hints, params)
 
             # Process attributes
@@ -144,16 +148,83 @@ class ASTProcessor[T: Callable]:
 
             self.facts = tuple(facts)
 
-    def _extract_lambda_source(self) -> str:
+    def _get_lambda_source(self) -> str:
+        """Get single and multi-line lambda source using AST parsing of the siource file."""
+        try:
+            # Get caller frame to find the source file
+            frame = inspect.currentframe()
+            while frame and frame.f_code.co_name != self.decorator.__name__:
+                frame = frame.f_back
+
+            if not frame or not frame.f_back:
+                return textwrap.dedent(inspect.getsource(self.func))
+
+            caller_frame = frame.f_back
+            filename = caller_frame.f_code.co_filename
+            lambda_lineno = self.func.__code__.co_firstlineno
+
+            # Read the source file
+            with open(filename, encoding="utf-8") as f:
+                file_content = f.read()
+
+            # Parse the AST of the source file
+            file_ast = ast.parse(file_content)
+
+            # Find the lambda expression at the specific line number
+            class LambdaFinder(ast.NodeVisitor):
+                def __init__(self, target_lineno):
+                    self.target_lineno = target_lineno
+                    self.found_lambda = None
+
+                def visit_Lambda(self, node):
+                    if node.lineno == self.target_lineno:
+                        self.found_lambda = node
+                    self.generic_visit(node)
+
+            finder = LambdaFinder(lambda_lineno)
+            finder.visit(file_ast)
+
+            if finder.found_lambda:
+                # Get the source lines that contain this lambda
+                lines = file_content.split("\n")
+                start_line = finder.found_lambda.lineno - 1
+
+                # Find the end of the lambda expression
+                end_line = start_line
+                if hasattr(finder.found_lambda, "end_lineno") and finder.found_lambda.end_lineno:
+                    end_line = finder.found_lambda.end_lineno - 1
+                else:
+                    # Fallback: find the closing parenthesis
+                    paren_count = 0
+                    for i in range(start_line, len(lines)):
+                        line = lines[i]
+                        paren_count += line.count("(") - line.count(")")
+                        if paren_count <= 0 and ")" in line:
+                            end_line = i
+                            break
+
+                return "\n".join(lines[start_line : end_line + 1])
+
+        except (OSError, SyntaxError, AttributeError):
+            pass
+
+        # Fallback to regular inspect.getsource
+        return textwrap.dedent(inspect.getsource(self.func))
+
+    def _normalize_lambda_source(self) -> str:
         """Extracts just the lambda expression from source code."""
-        lambda_start = self.source.find("lambda")
+
+        # Remove line endings and extra whitespace
+        source = re.sub(r"\r\n|\r|\n|\s+", " ", self.source)
+
+        lambda_start = source.find("lambda")
         if lambda_start == -1:  # pragma: no cover - internal AST error
             msg = "Could not find lambda expression in source"
             raise ASTProcessingError(msg)
 
-        # The source includes the entire line of code (e.g., assignment and condition() call)
-        # We need to extract just the lambda expression, handling nested structures correctly
-        source = self.source[lambda_start:]
+        # The source may include unrelated code (e.g., assignment and condition() call)
+        # So we need to extract just the lambda expression, handling nested structures correctly
+        source = source[lambda_start:]
 
         # Track depth of various brackets to ensure we don't split inside valid nested structures apart from trailing
         # arguments within the condition() call
