@@ -176,7 +176,7 @@ class ASTProcessor[T: Callable]:
                     self.target_lineno = target_lineno
                     self.found_lambda = None
 
-                def visit_Lambda(self, node):
+                def visit_Lambda(self, node):  # noqa: N802 - Case sensitive for AST
                     if node.lineno == self.target_lineno:
                         self.found_lambda = node
                     self.generic_visit(node)
