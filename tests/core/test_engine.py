@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from functools import partial
 
 import pytest
+from langchain.schema import AIMessage, BaseMessage, ChatGeneration, ChatResult
+from langchain_core.language_models import BaseChatModel, LanguageModelInput
+from langchain_core.messages.tool import tool_call
+from langchain_core.runnables import Runnable
 
 from vulcan_core import Fact, InternalStateError, RecursionLimitError, RuleEngine, action, condition
 from vulcan_core.ast_utils import NotAFactError
@@ -237,6 +241,53 @@ def test_ai_simple_rule(engine: RuleEngine):
     engine.evaluate()
     assert engine[LocationAnalysis].commonality == "volcano"
     assert engine[LocationResult].all_related is True
+
+
+def test_ai_rule_retry(engine: RuleEngine):
+    call_count = 1
+    failure_count = 3
+
+    class MockModel(BaseChatModel):
+        """Mock model to simulate failing AI response"""
+
+        @property
+        def _llm_type(self) -> str:
+            return "mock_model"
+
+        def bind_tools(self, *args, **kwargs) -> Runnable[LanguageModelInput, BaseMessage]:
+            return self
+
+        def _generate(self, *args, **kwargs) -> ChatResult:
+            nonlocal call_count
+            call_count += 1
+            if call_count <= failure_count:
+                msg = f"Simulated failure on attempt {call_count}"
+                raise ValueError(msg)
+
+            tool = tool_call(
+                id="call_1",
+                name="BooleanDecision",
+                args={"justification": "Something", "result": True, "invalid_inquiry": False},
+            )
+
+            message = AIMessage(content="", tool_calls=[tool])
+            generation = ChatGeneration(message=message)
+            return ChatResult(generations=[generation])
+
+    engine.rule(
+        when=condition(f"Are {LocationA.name} and {LocationB.name} volcanos?", model=MockModel()),
+        then=action(partial(LocationAnalysis, commonality="volcano")),
+    )
+
+    # Simulate successful retry
+    engine.evaluate()
+    assert engine[LocationAnalysis].commonality == "volcano"
+
+    # Simulate failure when exceeding max retries
+    call_count = 1
+    failure_count = 4
+    with pytest.raises(ValueError, match="Simulated failure on attempt 4"):
+        engine.evaluate()
 
 
 # TODO: Simplify and clarify test fixtures throughout tests

@@ -194,6 +194,7 @@ class AICondition(Condition):
     model: BaseChatModel
     system_template: str
     inquiry_template: str
+    retries: int = field(default=3)
     func: None = field(init=False, default=None)
     _rationale: str | None = field(init=False)
 
@@ -221,18 +222,32 @@ class AICondition(Condition):
 
         system_msg = LiteralFormatter().vformat(system_msg, [], values)
 
-        # Invoke the LLM and get the result
-        result: BooleanDecision = self.chain.invoke({"system_msg": system_msg, "inquiry": self.inquiry_template})
-        object.__setattr__(self, "_rationale", result.justification)
+        # Retry the LLM invocation until it succeeds or the max retries is reached
+        result: BooleanDecision
+        for attempt in range(self.retries):
+            try:
+                result = self.chain.invoke({"system_msg": system_msg, "inquiry": self.inquiry_template})
+                object.__setattr__(self, "_rationale", result.justification)
 
-        if result.invalid_inquiry or result.result is None:
-            raise AIDecisionError(result.justification)
+                if not (result.result is None or result.invalid_inquiry):
+                    break  # Successful result, exit retry loop
+                else:
+                    logger.debug("Retrying AI condition (attempt %s), reason: %s", attempt + 1, result.justification)
+
+            except Exception as e:
+                if attempt == self.retries - 1:
+                    raise  # Raise the last exception if max retries reached
+                logger.debug("Retrying AI condition (attempt %s), reason: %s", attempt + 1, e)
+
+        if result.result is None:
+            msg = f"Failed after {self.retries} attempts; reason: {result.justification}"
+            raise AIDecisionError(msg)
 
         return not result.result if self.inverted else result.result
 
 
 # TODO: Investigate how best to register tools for specific consitions
-def ai_condition(model: BaseChatModel, inquiry: str) -> AICondition:
+def ai_condition(model: BaseChatModel, inquiry: str, retries: int = 3) -> AICondition:
     # TODO: Optimize by precompiling regex and storing translation table globally
     # Find and referenced facts and replace braces with angle brackets
     facts = tuple(re.findall(r"\{([^}]+)\}", inquiry))
@@ -265,7 +280,9 @@ def ai_condition(model: BaseChatModel, inquiry: str) -> AICondition:
     prompt_template = ChatPromptTemplate.from_messages([("system", "{system_msg}"), ("user", user)])
     structured_model = model.with_structured_output(BooleanDecision)
     chain = prompt_template | structured_model
-    return AICondition(chain=chain, model=model, system_template=system, inquiry_template=inquiry, facts=facts)
+    return AICondition(
+        chain=chain, model=model, system_template=system, inquiry_template=inquiry, facts=facts, retries=retries
+    )
 
 
 @lru_cache(maxsize=1)
@@ -285,7 +302,7 @@ def _detect_default_model() -> BaseChatModel:
         raise ImportError(msg)
 
 
-def condition(func: ConditionCallable | str, model: BaseChatModel | None = None) -> Condition:
+def condition(func: ConditionCallable | str, retries: int = 3, model: BaseChatModel | None = None) -> Condition:
     """
     Creates a Condition object from a lambda or function. It performs limited static analysis of the code to ensure
     proper usage and discover the facts/attributes accessed by the condition. This allows the rule engine to track
@@ -332,7 +349,7 @@ def condition(func: ConditionCallable | str, model: BaseChatModel | None = None)
         # AI condition assumed
         if not model:
             model = _detect_default_model()
-        return ai_condition(model, func)
+        return ai_condition(model, func, retries)
 
 
 # TODO: Create a convenience function for creating OnFactChanged conditions
