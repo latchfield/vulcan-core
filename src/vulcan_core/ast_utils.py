@@ -83,6 +83,11 @@ class AttributeTransformer(NodeTransformer):
         return node
 
 
+# Global index to cache and track lambda functions position in lambda source lines.
+# Tuple format: (source code, last processed index)
+lambda_index: dict[Any, tuple[str, int | None]] = {}
+
+
 @dataclass
 class ASTProcessor[T: Callable]:
     func: T
@@ -103,8 +108,25 @@ class ASTProcessor[T: Callable]:
         else:
             try:
                 if self.is_lambda:
-                    self.source = self._get_lambda_source()
-                    self.source = self._normalize_lambda_source()
+                    # As of Python 3.12, there is no way to determine to which lambda self.func refers in an
+                    # expression containing multiple lambdas. Therefore we use a global to track the index of each
+                    # lambda function encountered, as the order will correspond to the order of ASTProcessor
+                    # invocations for that line. An additional benefit is that we can also use this as a cache to
+                    # avoid re-reading the source code for lambda functions sharing the same line.
+                    key = self.func.__code__.co_filename + ":" + str(self.func.__code__.co_firstlineno)
+
+                    index = lambda_index.get(key)
+                    if index is None or index[1] is None:
+                        self.source = self._get_lambda_source()
+                        index = (self.source, 0)
+                        lambda_index[key] = index
+                    else:
+                        self.source = index[0]
+                        index = (self.source, index[1] + 1)
+                        lambda_index[key] = index
+
+                    # Normalize the lambda source and extract the next lambda expression from the last index
+                    self.source = self._normalize_lambda_source(self.source, index[1])
                 else:
                     self.source = textwrap.dedent(inspect.getsource(self.func))
             except OSError as e:
@@ -117,7 +139,7 @@ class ASTProcessor[T: Callable]:
 
         self.tree = ast.parse(self.source)
 
-        # Peform basic AST checks and attribute discovery
+        # Perform basic AST checks and attribute discovery
         self._validate_ast()
         attributes = self._discover_attributes()
 
@@ -149,7 +171,7 @@ class ASTProcessor[T: Callable]:
             self.facts = tuple(facts)
 
     def _get_lambda_source(self) -> str:
-        """Get single and multi-line lambda source using AST parsing of the source file."""
+        """Get single and multiline lambda source using AST parsing of the source file."""
         try:
             # Get caller frame to find the source file
             frame = inspect.currentframe()
@@ -211,16 +233,19 @@ class ASTProcessor[T: Callable]:
         # Fallback to regular inspect.getsource
         return textwrap.dedent(inspect.getsource(self.func))
 
-    def _normalize_lambda_source(self) -> str:
+    def _normalize_lambda_source(self, source: str, index: int) -> str:
         """Extracts just the lambda expression from source code."""
 
         # Remove line endings and extra whitespace
-        source = re.sub(r"\r\n|\r|\n|\s+", " ", self.source)
+        source = re.sub(r"\r\n|\r|\n", " ", source)
+        source = re.sub(r"\s+", " ", source)
 
-        lambda_start = source.find("lambda")
-        if lambda_start == -1:  # pragma: no cover - internal AST error
+        # Find the Nth lambda occurrence using generator expression
+        positions = [i for i in range(len(source) - 5) if source[i : i + 6] == "lambda"]
+        if index >= len(positions):  # pragma: no cover - internal AST error
             msg = "Could not find lambda expression in source"
             raise ASTProcessingError(msg)
+        lambda_start = positions[index]
 
         # The source may include unrelated code (e.g., assignment and condition() call)
         # So we need to extract just the lambda expression, handling nested structures correctly
@@ -300,7 +325,7 @@ class ASTProcessor[T: Callable]:
                 raise CallableSignatureError(msg)
 
     def _discover_attributes(self) -> list[tuple[str, str]]:
-        """Discover attribute accessed within the AST."""
+        """Discover attributes accessed within the AST."""
         visitor = _AttributeVisitor()
         visitor.visit(self.tree)
         return visitor.attributes
@@ -312,7 +337,7 @@ class ASTProcessor[T: Callable]:
         param_counter = 0
 
         for class_name, attr in attributes:
-            # Verify name refers to a class type
+            # Verify the name refers to a class type
             if class_name not in globals_dict or not isinstance(globals_dict[class_name], type):
                 msg = f"Accessing undefined class '{class_name}'"
                 raise ScopeAccessError(msg)
@@ -375,7 +400,7 @@ class ASTProcessor[T: Callable]:
         lambda_body = ast.unparse(new_tree.body[0].value)
 
         # The AST unparsing creates a full lambda expression, but we only want its body. This handles edge cases where
-        # the transformed AST might generate different lambda syntax. than the original source code, ensuring we only
+        # the transformed AST might generate different lambda syntax than the original source code, ensuring we only
         # get the expression part.
         if lambda_body.startswith("lambda"):
             lambda_body = lambda_body[lambda_body.find(":") + 1 :].strip()

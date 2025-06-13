@@ -99,15 +99,15 @@ def test_complex_lambda():
 def test_multiline_lambda(foo_instance: Foo, bar_instance: Bar):
     # Turn formatting off to ensure test case
     # fmt: off
-    cond1 = condition(lambda: Foo.baz
-                        and Bar.biz)
-    # fmt: on
-
-    # fmt: off
-    cond2 = condition(
+    cond1 = condition(
         lambda: Foo.baz
                 and Bar.biz
         )
+    # fmt: on
+
+    # fmt: off
+    cond2 = condition(lambda: Foo.baz
+                        and Bar.biz)
     # fmt: on
 
     result1 = cond1(foo_instance, bar_instance)
@@ -141,6 +141,35 @@ def test_short_circuit_condition(foo_instance: Foo):
 
     with pytest.raises(AssertionError):
         cond3()
+
+
+def test_mixed_conditions(foo_instance: Foo, bar_instance: Bar):
+    mycond = condition(lambda: Foo.baz)
+    compound_cond = mycond & condition(lambda: Bar.biz)
+
+    result = compound_cond(foo_instance, bar_instance)
+    assert result is False
+
+
+def test_multiple_lambdas(foo_instance: Foo, bar_instance: Bar):
+    compound_cond1 = condition(lambda: Foo.baz) & condition(lambda: Bar.biz)
+    compound_cond2 = condition(lambda: Foo.baz) & condition(lambda: Foo.baz) & ~condition(lambda: Bar.biz)
+
+    result1 = compound_cond1(foo_instance, bar_instance)
+    result2 = compound_cond2(foo_instance, bar_instance)
+    assert result1 is False
+    assert result2 is True
+
+
+def test_mixed_conditions_decorator(foo_instance: Foo, bar_instance: Bar):
+    @condition
+    def decorated_cond(bar: Bar) -> bool:
+        return bar.biz
+
+    compound_cond = condition(lambda: Foo.baz) & decorated_cond
+
+    result = compound_cond(foo_instance, bar_instance)
+    assert result is False
 
 
 @pytest.mark.integration
@@ -189,7 +218,7 @@ def test_ai_simple_condition_false(fact_a_instance: FactA, fact_b_instance: Fact
 
 @pytest.mark.integration
 def test_ai_simple_condition_true(fact_a_instance: FactA, fact_b_instance: FactB):
-    cond = condition(f"Are {FactA.feature} and {FactB.feature} loosely similiar in concept?")
+    cond = condition(f"Are {FactA.feature} and {FactB.feature} loosely similar in concept?")
 
     assert set(cond.facts) == {"FactA.feature", "FactB.feature"}
     assert cond(fact_a_instance, fact_b_instance) is True
