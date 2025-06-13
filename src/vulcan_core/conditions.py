@@ -239,8 +239,9 @@ class AICondition(Condition):
                     raise  # Raise the last exception if max retries reached
                 logger.debug("Retrying AI condition (attempt %s), reason: %s", attempt + 1, e)
 
-        if result.result is None:
-            msg = f"Failed after {self.retries} attempts; reason: {result.justification}"
+        if result.result is None or result.invalid_inquiry:
+            reason = "invalid inquiry" if result.invalid_inquiry else result.justification
+            msg = f"Failed after {self.retries} attempts; reason: {reason}"
             raise AIDecisionError(msg)
 
         return not result.result if self.inverted else result.result
