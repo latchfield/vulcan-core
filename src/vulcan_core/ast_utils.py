@@ -85,6 +85,8 @@ class AttributeTransformer(NodeTransformer):
 
 # Global index to cache and track lambda functions position in lambda source lines.
 # Tuple format: (source code, last processed index)
+# TODO: Note in documentation that thread safety is not guaranteed when loading the same ruleset.
+# TODO: Consider updating to use a thread-safe structure like threading.local() if needed.
 lambda_index: dict[Any, tuple[str, int | None]] = {}
 
 
