@@ -125,6 +125,7 @@ def test_invert_condition(foo_instance: Foo):
     assert inverted.facts == cond.facts
     assert inverted(foo_instance) == (not cond(foo_instance))
 
+
 # https://github.com/latchfield/vulcan-core/issues/30
 def test_short_circuit_condition(foo_instance: Foo):
     true_condition = condition(lambda: True)
@@ -143,6 +144,7 @@ def test_short_circuit_condition(foo_instance: Foo):
     with pytest.raises(AssertionError):
         cond3()
 
+
 # https://github.com/latchfield/vulcan-core/issues/28
 def test_mixed_conditions(foo_instance: Foo, bar_instance: Bar):
     mycond = condition(lambda: Foo.baz)
@@ -150,6 +152,7 @@ def test_mixed_conditions(foo_instance: Foo, bar_instance: Bar):
 
     result = compound_cond(foo_instance, bar_instance)
     assert result is False
+
 
 # https://github.com/latchfield/vulcan-core/issues/28
 def test_multiple_lambdas(foo_instance: Foo, bar_instance: Bar):
@@ -160,6 +163,7 @@ def test_multiple_lambdas(foo_instance: Foo, bar_instance: Bar):
     result2 = compound_cond2(foo_instance, bar_instance)
     assert result1 is False
     assert result2 is True
+
 
 # https://github.com/latchfield/vulcan-core/issues/28
 def test_mixed_conditions_decorator(foo_instance: Foo, bar_instance: Bar):
@@ -179,6 +183,7 @@ def test_non_boolean_question(custom_model: BaseChatModel, fact_a_instance: Fact
 
     with pytest.raises(AIDecisionError):
         cond(fact_a_instance)
+
 
 # https://github.com/latchfield/vulcan-core/issues/32
 @pytest.mark.integration

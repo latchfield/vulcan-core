@@ -77,9 +77,10 @@ def test_simple_rule(engine: RuleEngine):
 
 
 # https://github.com/latchfield/vulcan-core/issues/44
+# Updated for https://github.com/latchfield/vulcan-core/issues/46
 def test_lambda_reparsing(engine: RuleEngine):
-    load_simple_rule(engine)
-    load_simple_rule(engine)
+    for _ in range(2):
+        load_simple_rule(engine)
 
 
 def test_same_fact_multiple_attributes_lambda(engine: RuleEngine):
