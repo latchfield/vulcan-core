@@ -5,6 +5,7 @@ import ast
 import inspect
 import re
 import textwrap
+import threading
 from ast import Attribute, Module, Name, NodeTransformer, NodeVisitor
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -83,10 +84,11 @@ class AttributeTransformer(NodeTransformer):
         return node
 
 
-# Global index to cache and track lambda functions position in lambda source lines.
+# Global index to cache and track lambda function positions within the same source lines.
 # Tuple format: (source code, last processed index)
-# TODO: Note in documentation that thread safety is not guaranteed when loading the same ruleset.
-# TODO: Consider updating to use a thread-safe structure like threading.local() if needed.
+# TODO: Consider if a redesign is possible to have a single ASTProcessor handle the entire source line, perhaps eagerly
+# processing all lambdas found in the line before the correspondign `condition` call.
+_lambda_index_lock = threading.Lock()
 lambda_index: dict[Any, tuple[str, int | None]] = {}
 
 
@@ -111,21 +113,27 @@ class ASTProcessor[T: Callable]:
             try:
                 if self.is_lambda:
                     # As of Python 3.12, there is no way to determine to which lambda self.func refers in an
-                    # expression containing multiple lambdas. Therefore we use a global to track the index of each
+                    # expression containing multiple lambdas. Therefore we use a global dict to track the index of each
                     # lambda function encountered, as the order will correspond to the order of ASTProcessor
                     # invocations for that line. An additional benefit is that we can also use this as a cache to
                     # avoid re-reading the source code for lambda functions sharing the same line.
-                    key = self.func.__code__.co_filename + ":" + str(self.func.__code__.co_firstlineno)
+                    #
+                    # The key for the index is a hash of the stack trace plus line number, which will be
+                    # unique for each call of a list of lambdas on the same line.
+                    frames = inspect.stack()[1:]  # Exclude current frame
+                    key = "".join(f"{f.filename}:{f.lineno}" for f in frames)
 
-                    index = lambda_index.get(key)
-                    if index is None or index[1] is None:
-                        self.source = self._get_lambda_source()
-                        index = (self.source, 0)
-                        lambda_index[key] = index
-                    else:
-                        self.source = index[0]
-                        index = (self.source, index[1] + 1)
-                        lambda_index[key] = index
+                    # Use a lock to ensure thread safety when accessing the global lambda index
+                    with _lambda_index_lock:
+                        index = lambda_index.get(key)
+                        if index is None or index[1] is None:
+                            self.source = self._get_lambda_source()
+                            index = (self.source, 0)
+                            lambda_index[key] = index
+                        else:
+                            self.source = index[0]
+                            index = (self.source, index[1] + 1)
+                            lambda_index[key] = index
 
                     # Normalize the lambda source and extract the next lambda expression from the last index
                     self.source = self._normalize_lambda_source(self.source, index[1])

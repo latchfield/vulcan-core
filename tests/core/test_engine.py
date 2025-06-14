@@ -10,6 +10,7 @@ from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages.tool import tool_call
 from langchain_core.runnables import Runnable
 
+from tests.core.fixtures.rule_loading import load_simple_rule
 from vulcan_core import Fact, InternalStateError, RecursionLimitError, RuleEngine, action, condition
 from vulcan_core.ast_utils import NotAFactError
 
@@ -73,6 +74,12 @@ def test_simple_rule(engine: RuleEngine):
 
     engine.evaluate()
     assert engine[Foo].bol is False
+
+
+# https://github.com/latchfield/vulcan-core/issues/44
+def test_lambda_reparsing(engine: RuleEngine):
+    load_simple_rule(engine)
+    load_simple_rule(engine)
 
 
 def test_same_fact_multiple_attributes_lambda(engine: RuleEngine):
@@ -243,6 +250,7 @@ def test_ai_simple_rule(engine: RuleEngine):
     assert engine[LocationResult].all_related is True
 
 
+# Test case for https://github.com/latchfield/vulcan-core/issues/31
 def test_ai_rule_retry(engine: RuleEngine):
     call_count = 1
     failure_count = 3

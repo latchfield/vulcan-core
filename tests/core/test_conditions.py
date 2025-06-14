@@ -96,6 +96,7 @@ def test_complex_lambda():
     assert set(cond.facts) == {"Foo.baz", "Bar.biz", "Foo.bol"}
 
 
+# https://github.com/latchfield/vulcan-core/issues/27
 def test_multiline_lambda(foo_instance: Foo, bar_instance: Bar):
     # Turn formatting off to ensure test case
     # fmt: off
@@ -124,7 +125,7 @@ def test_invert_condition(foo_instance: Foo):
     assert inverted.facts == cond.facts
     assert inverted(foo_instance) == (not cond(foo_instance))
 
-
+# https://github.com/latchfield/vulcan-core/issues/30
 def test_short_circuit_condition(foo_instance: Foo):
     true_condition = condition(lambda: True)
     obscured_condition = FailCondition(facts=("Foo.bol",), func=lambda: True)
@@ -142,7 +143,7 @@ def test_short_circuit_condition(foo_instance: Foo):
     with pytest.raises(AssertionError):
         cond3()
 
-
+# https://github.com/latchfield/vulcan-core/issues/28
 def test_mixed_conditions(foo_instance: Foo, bar_instance: Bar):
     mycond = condition(lambda: Foo.baz)
     compound_cond = mycond & condition(lambda: Bar.biz)
@@ -150,7 +151,7 @@ def test_mixed_conditions(foo_instance: Foo, bar_instance: Bar):
     result = compound_cond(foo_instance, bar_instance)
     assert result is False
 
-
+# https://github.com/latchfield/vulcan-core/issues/28
 def test_multiple_lambdas(foo_instance: Foo, bar_instance: Bar):
     compound_cond1 = condition(lambda: Foo.baz) & condition(lambda: Bar.biz)
     compound_cond2 = condition(lambda: Foo.baz) & condition(lambda: Foo.baz) & ~condition(lambda: Bar.biz)
@@ -160,7 +161,7 @@ def test_multiple_lambdas(foo_instance: Foo, bar_instance: Bar):
     assert result1 is False
     assert result2 is True
 
-
+# https://github.com/latchfield/vulcan-core/issues/28
 def test_mixed_conditions_decorator(foo_instance: Foo, bar_instance: Bar):
     @condition
     def decorated_cond(bar: Bar) -> bool:
@@ -179,7 +180,7 @@ def test_non_boolean_question(custom_model: BaseChatModel, fact_a_instance: Fact
     with pytest.raises(AIDecisionError):
         cond(fact_a_instance)
 
-
+# https://github.com/latchfield/vulcan-core/issues/32
 @pytest.mark.integration
 def test_literal_placeholder_interpretation(fact_a_instance: FactA):
     cond1 = condition(f"Literally speaking, is {FactA.feature} wrapped in curly braces?")
@@ -198,6 +199,7 @@ def test_literal_placeholder_interpretation(fact_a_instance: FactA):
 # TODO: Also note in documentation that not all models support seed or temperature, which may alter repeatability
 # See: https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reproducible-output?tabs=pyton#supported-models
 # See: https://community.openai.com/t/seed-param-and-reproducible-output-do-not-work/487245/25
+# https://github.com/latchfield/vulcan-core/issues/32
 @pytest.mark.integration
 def test_simple_jailbreak_resist(fact_a_instance: FactA):
     cond = condition(
