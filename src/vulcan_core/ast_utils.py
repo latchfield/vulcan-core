@@ -7,6 +7,7 @@ import logging
 import re
 import textwrap
 from ast import Attribute, Module, Name, NodeTransformer, NodeVisitor
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -99,6 +100,7 @@ class LambdaSource:
     source: str
     count: int
     pos: int = field(default=0)
+    in_use: bool = field(default=True)
 
 
 @dataclass
@@ -149,8 +151,9 @@ class ASTProcessor[T: Callable]:
     tree: Module = field(init=False)
     facts: tuple[str, ...] = field(init=False)
 
-    # Class-level tracking of lambda source to handle multiple lambdas on the same line
-    _lambda_sources: ClassVar[dict[str, LambdaSource]] = {}
+    # Class-level tracking of lambdas across parsing calls to handle multiple lambdas on the same line
+    _lambda_cache: ClassVar[OrderedDict[str, LambdaSource]] = OrderedDict()
+    _MAX_LAMBDA_CACHE_SIZE: ClassVar[int] = 1024
 
     @cached_property
     def is_lambda(self) -> bool:
@@ -168,14 +171,15 @@ class ASTProcessor[T: Callable]:
                     # lambda function encountered, as the order will correspond to the order of ASTProcessor
                     # invocations for that line. An additional benefit is that we can also use this as a cache to
                     # avoid re-reading the source code for lambda functions sharing the same line.
-                    source_line = self.func.__code__.co_filename + ":" + str(self.func.__code__.co_firstlineno)
-                    lambda_src = self._lambda_sources.get(source_line)
+                    source_line = f"{self.func.__code__.co_filename}:{self.func.__code__.co_firstlineno}"
+                    lambda_src = self._lambda_cache.get(source_line)
 
                     if lambda_src is None:
                         self.source = self._get_lambda_source()
                         lambda_count = self._count_lambdas(self.source)
                         lambda_src = LambdaSource(self.source, lambda_count)
-                        self._lambda_sources[source_line] = lambda_src
+                        self._lambda_cache[source_line] = lambda_src
+                        self._trim_lambda_cache()
                     else:
                         self.source = lambda_src.source
                         lambda_src.pos += 1
@@ -186,6 +190,11 @@ class ASTProcessor[T: Callable]:
 
                     # Normalize the lambda source and extract the next lambda expression from the last index
                     self.source = self._normalize_lambda_source(self.source, lambda_src.pos)
+
+                    # If done processing lambdas in the source, mark as not processing anymore
+                    if lambda_src.pos >= lambda_src.count - 1:
+                        lambda_src.in_use = False
+
                 else:
                     self.source = textwrap.dedent(inspect.getsource(self.func))
             except OSError as e:
@@ -228,6 +237,25 @@ class ASTProcessor[T: Callable]:
                 facts.append(f"{hints[class_name].__name__}.{attr}")
 
             self.facts = tuple(facts)
+
+    def _trim_lambda_cache(self) -> None:
+        """Clean up lambda cache by removing oldest unused entries when cache size exceeds limit."""
+        if len(self._lambda_cache) <= self._MAX_LAMBDA_CACHE_SIZE:
+            return
+
+        # Calculate how many entries to remove (excess + 20% buffer to avoid thrashing)
+        excess_count = len(self._lambda_cache) - self._MAX_LAMBDA_CACHE_SIZE
+        buffer_count = int(self._MAX_LAMBDA_CACHE_SIZE * 0.2)
+        target_count = excess_count + buffer_count
+
+        # Find and remove unused entries
+        removed_count = 0
+        for key in list(self._lambda_cache):
+            if removed_count >= target_count:
+                break
+            if not self._lambda_cache[key].in_use:
+                del self._lambda_cache[key]
+                removed_count += 1
 
     def _count_lambdas(self, source: str) -> int:
         """Count lambda expressions in source code using AST parsing."""
