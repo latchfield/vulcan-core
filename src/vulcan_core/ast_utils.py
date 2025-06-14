@@ -3,6 +3,7 @@
 
 import ast
 import inspect
+import logging
 import re
 import textwrap
 from ast import Attribute, Module, Name, NodeTransformer, NodeVisitor
@@ -13,6 +14,8 @@ from types import MappingProxyType
 from typing import Any, ClassVar, TypeAliasType, get_type_hints
 
 from vulcan_core.models import Fact, HasSource
+
+logger = logging.getLogger(__name__)
 
 
 class ASTProcessingError(RuntimeError):
@@ -170,7 +173,7 @@ class ASTProcessor[T: Callable]:
 
                     if lambda_src is None:
                         self.source = self._get_lambda_source()
-                        lambda_count = self.source.count("lambda:")
+                        lambda_count = self._count_lambdas(self.source)
                         lambda_src = LambdaSource(self.source, lambda_count)
                         self._lambda_sources[source_line] = lambda_src
                     else:
@@ -226,19 +229,29 @@ class ASTProcessor[T: Callable]:
 
             self.facts = tuple(facts)
 
+    def _count_lambdas(self, source: str) -> int:
+        """Count lambda expressions in source code using AST parsing."""
+        tree = ast.parse(source)
+
+        class LambdaCounter(ast.NodeVisitor):
+            def __init__(self):
+                self.count = 0
+
+            def visit_Lambda(self, node):  # noqa: N802 - Case sensitive for AST
+                self.count += 1
+                self.generic_visit(node)
+
+        counter = LambdaCounter()
+        counter.visit(tree)
+        return counter.count
+
     def _get_lambda_source(self) -> str:
         """Get single and multiline lambda source using AST parsing of the source file."""
+        source = None
+
         try:
-            # Get caller frame to find the source file
-            frame = inspect.currentframe()
-            while frame and frame.f_code.co_name != self.decorator.__name__:
-                frame = frame.f_back
-
-            if not frame or not frame.f_back:
-                return textwrap.dedent(inspect.getsource(self.func))
-
-            caller_frame = frame.f_back
-            filename = caller_frame.f_code.co_filename
+            # Get the source file and line number
+            filename = self.func.__code__.co_filename
             lambda_lineno = self.func.__code__.co_firstlineno
 
             # Read the source file
@@ -281,20 +294,25 @@ class ASTProcessor[T: Callable]:
                             end_line = i
                             break
 
-                return "\n".join(lines[start_line : end_line + 1])
+                source = "\n".join(lines[start_line : end_line + 1])
 
         except (OSError, SyntaxError, AttributeError):
-            pass
+            logger.exception("Failed to extract lambda source, attempting fallback.")
+            source = inspect.getsource(self.func).strip()
 
-        # Fallback to regular inspect.getsource
-        return textwrap.dedent(inspect.getsource(self.func))
+        if source is None or source == "":
+            msg = "Could not extract lambda source code"
+            raise ASTProcessingError(msg)
+
+        # Normalize the source: convert line breaks to spaces, collapse whitespace, and dedent
+        source = re.sub(r"\r\n|\r|\n", " ", source)
+        source = re.sub(r"\s+", " ", source)
+        source = textwrap.dedent(source)
+
+        return source
 
     def _normalize_lambda_source(self, source: str, index: int) -> str:
         """Extracts just the lambda expression from source code."""
-
-        # Remove line endings and extra whitespace
-        source = re.sub(r"\r\n|\r|\n", " ", source)
-        source = re.sub(r"\s+", " ", source)
 
         # Find the Nth lambda occurrence using generator expression
         positions = [i for i in range(len(source) - 5) if source[i : i + 6] == "lambda"]
