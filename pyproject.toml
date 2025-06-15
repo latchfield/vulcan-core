@@ -20,7 +20,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-version = "1.1.4" # Update manually, or use plugin
+version = "1.1.5" # Update manually, or use plugin
 packages = [{ include = "vulcan_core", from="src" }]
 requires-poetry = "~2.1.1"
 classifiers = [
