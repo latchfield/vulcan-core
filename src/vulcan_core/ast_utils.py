@@ -279,7 +279,7 @@ class ASTProcessor[T: Callable]:
 
         try:
             # Get the source file and line number
-            # Fixes #48 - Don't read source from files as it will fail in some cases (e.g., lambdas in REPL)
+            # Avoid reading source from files directly, as it may fail in some cases (e.g., lambdas in REPL)
             file_content = "".join(inspect.findsource(self.func)[0])
             lambda_lineno = self.func.__code__.co_firstlineno
 
