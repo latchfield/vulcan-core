@@ -179,7 +179,7 @@ def test_mixed_conditions_decorator(foo_instance: Foo, bar_instance: Bar):
 
 @pytest.mark.integration
 def test_non_boolean_question(custom_model: BaseChatModel, fact_a_instance: FactA):
-    cond = ai_condition(custom_model, f"What do you think of {FactA.feature}?")
+    cond = ai_condition(custom_model, f"What do you think of {FactA.feature}?", retries=1)
 
     with pytest.raises(AIDecisionError):
         cond(fact_a_instance)

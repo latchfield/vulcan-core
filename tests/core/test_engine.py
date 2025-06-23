@@ -232,6 +232,19 @@ def test_not_a_fact():
         engine.fact(NotAFact())  # type: ignore
 
 
+def test_skip_rule_some_facts():
+    engine = RuleEngine()
+
+    engine.rule(
+        when=condition(lambda: Foo.baz and Bar.biz),
+        then=action(partial(Biff, bez=True)),
+        inverse=action(partial(Biff, bez=False)),
+    )
+
+    engine.evaluate(Foo())
+    assert Biff not in engine.facts
+
+
 @pytest.mark.integration
 def test_ai_simple_rule(engine: RuleEngine):
     # TODO: This test is firing the second rule twice for some reason
