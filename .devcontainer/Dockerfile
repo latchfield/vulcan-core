@@ -2,7 +2,7 @@
 # Copyright 2025 Latchfield Technologies http://latchfield.com
 
 # https://hub.docker.com/r/microsoft/devcontainers-python
-FROM mcr.microsoft.com/devcontainers/python:1.1-3.12-bookworm
+FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm
 
 # Install unattended-upgrades and configure for hourly security-only updates
 # https://askubuntu.com/a/412
