@@ -232,7 +232,8 @@ def test_not_a_fact():
         engine.fact(NotAFact())  # type: ignore
 
 
-def test_skip_rule_some_facts():
+# Test case for https://github.com/latchfield/vulcan-core/issues/61
+def test_skip_rule_missing_facts():
     engine = RuleEngine()
 
     engine.rule(
