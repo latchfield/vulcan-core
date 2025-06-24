@@ -223,21 +223,22 @@ class RuleEngine:
                         # Skip if we already evaluated the rule this iteration
                         if rule.id in fired_rules:
                             continue
+
+                        # Skip if not all facts required by the rule are present
+                        try:
+                            resolved_facts = self._resolve_facts(rule.when)
+                        except KeyError as e:
+                            logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
+                            continue
+
+                        action = None
                         fired_rules.add(rule.id)
 
                         # Evaluate the rule's 'when' and determine which action to invoke
-                        action = None
-
-                        try:
-                            if rule.when(*self._resolve_facts(rule.when)):
-                                action = rule.then
-                            elif rule.inverse:
-                                action = rule.inverse
-                        except KeyError:
-                            logger.debug(
-                                "Rule %s (%s) skipped due to missing facts: %s", rule.name, rule.id, rule.when.facts
-                            )
-                            continue
+                        if rule.when(*resolved_facts):
+                            action = rule.then
+                        elif rule.inverse:
+                            action = rule.inverse
 
                         if action:
                             # Update the facts and track consequences to fire subsequent rules

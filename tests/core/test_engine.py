@@ -242,7 +242,7 @@ def test_skip_rule_some_facts():
     )
 
     engine.evaluate(Foo())
-    assert Biff not in engine.facts
+    assert Biff.__name__ not in engine.facts
 
 
 @pytest.mark.integration
