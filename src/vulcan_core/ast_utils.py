@@ -205,15 +205,27 @@ class ASTProcessor[T: Callable]:
                     raise
             self.func.__source__ = self.source
 
-        # Parse the AST with error handling for malformed source
+        # Parse the AST with minimal error handling
         try:
             self.tree = ast.parse(self.source)
         except SyntaxError:
-            # If the source cannot be parsed directly, try to clean it up
-            # This can happen when lambda source includes operators or incomplete expressions
-            cleaned_source = self._clean_lambda_source(self.source)
-            self.tree = ast.parse(cleaned_source)
-            self.source = cleaned_source
+            # For malformed source (common with multiline expressions), 
+            # extract just the lambda expression using regex
+            import re
+            lambda_match = re.search(r'lambda[^:]*:[^,)]*', self.source)
+            if lambda_match:
+                lambda_source = lambda_match.group(0)
+                self.tree = ast.parse(lambda_source)
+                self.source = lambda_source
+            else:
+                # If no lambda found, try stripping operators and wrapping
+                cleaned = self.source.lstrip(" &|~").rstrip(" ,)")
+                try:
+                    self.tree = ast.parse(cleaned)
+                    self.source = cleaned
+                except SyntaxError:
+                    self.tree = ast.parse(f"({cleaned})")
+                    self.source = f"({cleaned})"
 
         # Perform basic AST checks and attribute discovery
         self._validate_ast()
@@ -270,30 +282,11 @@ class ASTProcessor[T: Callable]:
         try:
             tree = ast.parse(source)
         except SyntaxError:
-            # If the source cannot be parsed directly (e.g., it contains operators or incomplete expressions),
-            # try to wrap it in a minimal context that makes it parseable
-            wrapped_sources = [
-                f"({source})",  # Wrap in parentheses
-                f"x = {source}",  # Wrap as assignment
-                f"x = ({source})",  # Wrap as assignment with parentheses
-            ]
-            
-            tree = None
-            for wrapped in wrapped_sources:
-                try:
-                    tree = ast.parse(wrapped)
-                    break
-                except SyntaxError:
-                    continue
-            
-            if tree is None:
-                # If we still can't parse it, try to extract just the lambda part using regex
-                # This is a fallback for very complex cases
-                import re
-                lambda_pattern = r'lambda[^:]*:[^,\)]*(?:\([^)]*\)[^,\)]*)*'
-                lambda_matches = re.findall(lambda_pattern, source)
-                return len(lambda_matches)
-
+            # For malformed source, use regex to count lambda expressions
+            import re
+            lambda_pattern = r'\blambda\b[^:]*:'
+            return len(re.findall(lambda_pattern, source))
+        
         class LambdaCounter(ast.NodeVisitor):
             def __init__(self):
                 self.count = 0
@@ -306,53 +299,6 @@ class ASTProcessor[T: Callable]:
         counter.visit(tree)
         return counter.count
 
-    def _clean_lambda_source(self, source: str) -> str:
-        """Clean malformed lambda source to make it parseable."""
-        # If the source starts with operators or contains incomplete expressions,
-        # try to extract just the relevant lambda-containing part
-        
-        # Try different cleanup strategies
-        cleaned_options = []
-        
-        # Strategy 1: Remove leading operators and whitespace
-        cleaned = source.lstrip(" &|~")
-        if cleaned != source:
-            cleaned_options.append(cleaned)
-        
-        # Strategy 2: Extract just the condition() call if present
-        import re
-        condition_match = re.search(r'(condition\s*\([^)]*\))', source)
-        if condition_match:
-            cleaned_options.append(condition_match.group(1))
-        
-        # Strategy 3: Extract just the lambda if present
-        lambda_match = re.search(r'(lambda[^,)]*)', source)
-        if lambda_match:
-            cleaned_options.append(lambda_match.group(1))
-        
-        # Try to parse each option and return the first that works
-        for option in cleaned_options:
-            try:
-                ast.parse(option)
-                return option
-            except SyntaxError:
-                continue
-        
-        # If none work, fall back to wrapping the original source
-        wrapped_options = [
-            f"({source})",  # Wrap in parentheses
-            f"x = {source}",  # Wrap as assignment
-        ]
-        
-        for option in wrapped_options:
-            try:
-                ast.parse(option)
-                return option
-            except SyntaxError:
-                continue
-        
-        # If all else fails, return the original source and let it fail
-        return source
 
     def _get_lambda_source(self) -> str:
         """Get single and multiline lambda source using AST parsing of the source file."""
