@@ -128,25 +128,19 @@ def test_invert_condition(foo_instance: Foo):
 
 # https://github.com/latchfield/vulcan-core/issues/65  
 def test_multiline_compound_condition_with_lambda(foo_instance: Foo, bar_instance: Bar):
-    """Test that multiline compound conditions with inline lambda work correctly."""
     cond1 = condition(lambda: Foo.baz)
     cond2 = condition(lambda: Bar.biz)
 
-    # Test that individual conditions work
     assert cond1(foo_instance) is True
     assert cond2(bar_instance) is False  # Bar.biz is False by default
     
-    # This should not raise a SyntaxError even when formatted across multiple lines
-    # The actual issue was the SyntaxError, so test that the creation works
     # fmt: off
     compound_cond = (cond1
                    & cond2
                    & condition(lambda: Foo.baz or Bar.biz))
     # fmt: on
 
-    # Test that the multiline compound condition works
     result = compound_cond(foo_instance, bar_instance)
-    # Should be False because Bar.biz is False
     assert result is False
 
 
