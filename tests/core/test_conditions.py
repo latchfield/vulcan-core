@@ -232,6 +232,15 @@ def test_ai_simple_condition_true(fact_a_instance: FactA, fact_b_instance: FactB
     assert cond(fact_a_instance, fact_b_instance) is True
 
 
+# https://github.com/latchfield/vulcan-core/issues/68
+@pytest.mark.integration
+def test_ai_inverted_condition(fact_a_instance: FactA, fact_b_instance: FactB):
+    cond = ~condition(f"Are {FactA.feature} and {FactB.feature} both on the same planet?")
+
+    assert set(cond.facts) == {"FactA.feature", "FactB.feature"}
+    assert cond(fact_a_instance, fact_b_instance) is True
+
+
 @pytest.mark.integration
 def test_ai_missing_fact():
     # TODO: Determine the difference between tool calls and non-tool calls

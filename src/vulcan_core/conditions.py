@@ -6,11 +6,11 @@ from __future__ import annotations
 import _string  # type: ignore
 import re
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import lru_cache
 from string import Formatter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from langchain.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
@@ -78,8 +78,8 @@ class Condition(FactHandler[ConditionCallable, bool], Expression):
         result = self.func(*args)
         return not result if self.inverted else result
 
-    def __invert__(self) -> Condition:
-        return Condition(self.facts, self.func, inverted=not self.inverted)
+    def __invert__(self) -> Self:
+        return replace(self, inverted=not self.inverted)
 
 
 class Operator(Enum):
