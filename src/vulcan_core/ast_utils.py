@@ -3,9 +3,11 @@
 
 import ast
 import inspect
+import io
 import logging
 import re
 import textwrap
+import tokenize
 from ast import Attribute, Module, Name, NodeTransformer, NodeVisitor
 from collections import OrderedDict
 from collections.abc import Callable
@@ -88,18 +90,19 @@ class AttributeTransformer(NodeTransformer):
 
 
 @dataclass(slots=True)
-class LambdaSource:
+class LambdaTracker:
     """Index entry for tracking the parsing position of lambda functions in source lines.
 
     Attributes:
         source (str): The source code string containing lambda functions
-        count (int): The number of lambda functions found in the source string.
-        pos (int): The current parsing position within the source string.
+        positions (list[int]): Positions where lambda functions are found in the source
+        index (int): The lambda being parsed within the source string.
+        in_use (bool): Whether this source is currently being processed or not, making it eligible for cache deletion.
     """
 
     source: str
-    count: int
-    pos: int = field(default=0)
+    positions: list[int]
+    index: int = field(default=0)
     in_use: bool = field(default=True)
 
 
@@ -152,7 +155,7 @@ class ASTProcessor[T: Callable]:
     facts: tuple[str, ...] = field(init=False)
 
     # Class-level tracking of lambdas across parsing calls to handle multiple lambdas on the same line
-    _lambda_cache: ClassVar[OrderedDict[str, LambdaSource]] = OrderedDict()
+    _lambda_cache: ClassVar[OrderedDict[str, LambdaTracker]] = OrderedDict()
     _MAX_LAMBDA_CACHE_SIZE: ClassVar[int] = 1024
 
     @cached_property
@@ -170,30 +173,30 @@ class ASTProcessor[T: Callable]:
                     # expression containing multiple lambdas. Therefore we use a dict to track the index of each
                     # lambda function encountered, as the order will correspond to the order of ASTProcessor
                     # invocations for that line. An additional benefit is that we can also use this as a cache to
-                    # avoid re-reading the source code for lambda functions sharing the same line.
+                    # avoid re-reading and parsing the source code for lambda functions sharing the same line.
                     source_line = f"{self.func.__code__.co_filename}:{self.func.__code__.co_firstlineno}"
-                    lambda_src = self._lambda_cache.get(source_line)
+                    tracker = self._lambda_cache.get(source_line)
 
-                    if lambda_src is None:
+                    if tracker is None:
                         self.source = self._get_lambda_source()
-                        lambda_count = self._count_lambdas(self.source)
-                        lambda_src = LambdaSource(self.source, lambda_count)
-                        self._lambda_cache[source_line] = lambda_src
+                        positions = self._find_lambdas(self.source)
+
+                        tracker = LambdaTracker(self.source, positions)
+                        self._lambda_cache[source_line] = tracker
                         self._trim_lambda_cache()
                     else:
-                        self.source = lambda_src.source
-                        lambda_src.pos += 1
+                        tracker.index += 1
 
                         # Reset the position if it exceeds the count of lambda expressions
-                        if lambda_src.pos >= lambda_src.count:
-                            lambda_src.pos = 0
+                        if tracker.index >= len(tracker.positions):
+                            tracker.index = 0
 
-                    # Normalize the lambda source and extract the next lambda expression from the last index
-                    self.source = self._normalize_lambda_source(self.source, lambda_src.pos)
+                    # Extract the next lambda source based on the current tracking state
+                    self.source = self._extract_next_lambda(tracker)
 
-                    # If done processing lambdas in the source, mark as not processing anymore
-                    if lambda_src.pos >= lambda_src.count - 1:
-                        lambda_src.in_use = False
+                    # If all found lambdas have been processed, mark the tracker as not in use
+                    if tracker.index >= len(tracker.positions) - 1:
+                        tracker.in_use = False
 
                 else:
                     self.source = textwrap.dedent(inspect.getsource(self.func))
@@ -205,6 +208,7 @@ class ASTProcessor[T: Callable]:
                     raise
             self.func.__source__ = self.source
 
+        # Parse the AST with minimal error handling
         self.tree = ast.parse(self.source)
 
         # Perform basic AST checks and attribute discovery
@@ -257,21 +261,14 @@ class ASTProcessor[T: Callable]:
                 del self._lambda_cache[key]
                 removed_count += 1
 
-    def _count_lambdas(self, source: str) -> int:
-        """Count lambda expressions in source code using AST parsing."""
-        tree = ast.parse(source)
+    def _find_lambdas(self, source: str) -> list[int]:
+        """Find all lambda expressions in the source code and return their starting positions."""
+        tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+        lambda_positions = [
+            token.start[1] for token in tokens if token.type == tokenize.NAME and token.string == "lambda"
+        ]
 
-        class LambdaCounter(ast.NodeVisitor):
-            def __init__(self):
-                self.count = 0
-
-            def visit_Lambda(self, node):  # noqa: N802 - Case sensitive for AST
-                self.count += 1
-                self.generic_visit(node)
-
-        counter = LambdaCounter()
-        counter.visit(tree)
-        return counter.count
+        return lambda_positions
 
     def _get_lambda_source(self) -> str:
         """Get single and multiline lambda source using AST parsing of the source file."""
@@ -336,15 +333,11 @@ class ASTProcessor[T: Callable]:
 
         return source
 
-    def _normalize_lambda_source(self, source: str, index: int) -> str:
-        """Extracts just the lambda expression from source code."""
-
-        # Find the Nth lambda occurrence using generator expression
-        positions = [i for i in range(len(source) - 5) if source[i : i + 6] == "lambda"]
-        if index >= len(positions):  # pragma: no cover - internal AST error
-            msg = "Could not find lambda expression in source"
-            raise ASTProcessingError(msg)
-        lambda_start = positions[index]
+    def _extract_next_lambda(self, src: LambdaTracker) -> str:
+        """Extracts the next lambda expression from source code."""
+        source = src.source
+        index = src.index
+        lambda_start = src.positions[index]
 
         # The source may include unrelated code (e.g., assignment and condition() call)
         # So we need to extract just the lambda expression, handling nested structures correctly

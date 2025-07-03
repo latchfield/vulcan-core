@@ -93,6 +93,50 @@ def test_same_fact_multiple_attributes_lambda(engine: RuleEngine):
     assert engine[Bar].biz is True
 
 
+# https://github.com/latchfield/vulcan-core/issues/65
+def test_multiline_rule(engine: RuleEngine):
+    cond1 = condition(lambda: Foo.baz)
+    cond2 = condition(lambda: Foo.bol)
+
+    # fmt: off
+    engine.rule(
+        when=cond1
+        & cond2
+        & condition(lambda: Foo.baz or Foo.bol or Foo.baz),
+        then=action(partial(Bar, biz=True)),
+    )
+    # fmt: on
+
+    engine.evaluate()
+    assert engine[Bar].biz is True
+
+
+# https://github.com/latchfield/vulcan-core/issues/65
+def test_rule_with_reserved_literals(engine: RuleEngine):
+    # fmt: off
+    engine.rule(
+        when=condition(lambda: Foo.bol)
+        & condition(lambda: "lambda:" != None) & condition(lambda: Foo.baz),
+        then=action(partial(Bar, biz=True)),
+    )
+    # fmt: on
+
+    engine.evaluate()
+    assert engine[Bar].biz is True
+
+
+# https://github.com/latchfield/vulcan-core/issues/66
+def test_same_fact_multiple_attributes_compound_conditions(engine: RuleEngine):
+    # Suspect there may be a random component somewhere - sometimes this test passes when expected to fail
+    engine.rule(
+        when=condition(lambda: Foo.baz) & condition(lambda: Foo.bol),
+        then=action(partial(Bar, biz=True)),
+    )
+
+    engine.evaluate()
+    assert engine[Bar].biz is True
+
+
 def test_same_fact_multiple_attributes_decorator(engine: RuleEngine):
     @condition
     def cond(foo: Foo) -> bool:

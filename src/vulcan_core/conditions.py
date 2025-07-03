@@ -111,7 +111,21 @@ class CompoundCondition(Expression):
 
     def _pick_args(self, expr: Expression, args) -> list[Fact]:
         """Returns the arg values passed to this CompoundCondition that are needed by the given expression."""
-        return [arg for fact, arg in zip(self.facts, args, strict=False) if fact in expr.facts]
+        # Extract required class types from expression facts
+        required_types = set()
+        for fact in expr.facts:
+            class_name = fact.split('.')[0]  # Extract class name from "ClassName.attribute"
+            required_types.add(class_name)
+        
+        # Find matching instances from args by class type
+        result = []
+        for class_name in sorted(required_types):  # Sort for consistent ordering
+            for arg in args:
+                if arg.__class__.__name__ == class_name:
+                    result.append(arg)
+                    break
+        
+        return result
 
     def __call__(self, *args: Fact) -> bool:
         """
