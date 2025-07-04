@@ -271,10 +271,20 @@ class RuleEngine:
                             elif rule.inverse:
                                 action = rule.inverse
                             
+                            # Execute action and capture consequences
+                            consequences = []
+                            if action:
+                                # Execute the action to get the result and consequences
+                                result = action(*self._resolve_facts(action))
+                                consequences = self._extract_action_consequences_from_result(result)
+                                # Update facts
+                                facts = self._update_facts(result)
+                                consequence.update(facts)
+                            
                             # Create match data
                             match_data = self._trace_rule_evaluation(
                                 rule, resolved_facts, rule_result, action, 
-                                rule_timestamp, time.time() - rule_start
+                                rule_timestamp, time.time() - rule_start, consequences
                             )
                             iteration_matches.append(match_data)
                         else:
@@ -286,7 +296,7 @@ class RuleEngine:
                             elif rule.inverse:
                                 action = rule.inverse
 
-                        if action:
+                        if action and not trace:  # Only execute if not already done in tracing
                             # Update the facts and track consequences to fire subsequent rules
                             result = action(*self._resolve_facts(action))
                             facts = self._update_facts(result)
@@ -330,7 +340,7 @@ class RuleEngine:
     
     def _trace_rule_evaluation(self, rule: Rule, resolved_facts: list[Fact], 
                                rule_result: bool, action, rule_timestamp: datetime, 
-                               elapsed: float) -> object:
+                               elapsed: float, consequences: list) -> object:
         """
         Trace the evaluation of a rule for reporting purposes.
         
@@ -341,24 +351,18 @@ class RuleEngine:
             action: The action that will be executed (if any)
             rule_timestamp: When the rule evaluation started
             elapsed: How long the rule evaluation took
+            consequences: Already computed consequences from action execution
             
         Returns:
             RuleMatch object with evaluation details
         """
-        from vulcan_core.reporting import RuleMatch, RuleMatchConsequence
+        from vulcan_core.reporting import RuleMatch
         
         rule_name = rule.name or "None"
         rule_id = str(rule.id)[:8]  # Use first 8 chars of UUID for readability
         
         # Create evaluation string representation
         evaluation_str = self._format_evaluation_string(rule.when, resolved_facts, rule_result)
-        
-        # Create consequences if action will be executed
-        consequences = []
-        if action:
-            # Extract consequences from the action - this is simplified for now
-            # We'll need to enhance this to capture actual consequence values
-            consequences = self._extract_action_consequences(action, resolved_facts)
         
         return RuleMatch(
             rule=f"{rule_id}:{rule_name}",
@@ -390,7 +394,42 @@ class RuleEngine:
     
     def _format_simple_condition(self, condition, fact_map: dict, result: bool) -> str:
         """Format a simple lambda-based condition."""
-        # Extract fact references from condition.facts
+        # Try to parse the condition function to understand the expression
+        import inspect
+        
+        try:
+            # Get the source code of the lambda function
+            source = inspect.getsource(condition.func)
+            # Extract the lambda expression (simplified parsing)
+            if "lambda:" in source:
+                expr_part = source.split("lambda:")[1].strip()
+                # Remove any trailing punctuation
+                expr_part = expr_part.rstrip(")\n,")
+                
+                # Replace fact references with values
+                formatted_expr = expr_part
+                for fact_ref in condition.facts:
+                    class_name, attr_name = fact_ref.split(".", 1)
+                    if class_name in fact_map:
+                        fact_instance = fact_map[class_name]
+                        actual_value = getattr(fact_instance, attr_name)
+                        # Replace the fact reference with the inline value format
+                        formatted_expr = formatted_expr.replace(
+                            f"{class_name}.{attr_name}", 
+                            f"{class_name}.{attr_name}|{actual_value}|"
+                        )
+                
+                # Apply inversion if needed
+                if condition.inverted:
+                    formatted_expr = f"not({formatted_expr})"
+                
+                return f"{result} = {formatted_expr}"
+                
+        except Exception:
+            # Fallback to basic formatting if source parsing fails
+            pass
+        
+        # Fallback: basic format with fact values
         fact_parts = []
         for fact_ref in condition.facts:
             class_name, attr_name = fact_ref.split(".", 1)
@@ -401,41 +440,46 @@ class RuleEngine:
             else:
                 fact_parts.append(f"{fact_ref}|?|")
         
-        # Try to reconstruct the condition expression
-        # This is simplified - a full implementation would need to parse the AST
+        # Simple joining for multiple facts
         if len(fact_parts) == 1:
             evaluation_expr = fact_parts[0]
-        elif len(fact_parts) == 2:
-            # Assume simple binary operation for now
-            evaluation_expr = f"{fact_parts[0]} op {fact_parts[1]}"
         else:
             evaluation_expr = " and ".join(fact_parts)
+            
+        if condition.inverted:
+            evaluation_expr = f"not({evaluation_expr})"
         
         return f"{result} = {evaluation_expr}"
     
     def _format_compound_condition(self, condition, fact_map: dict, result: bool) -> str:
         """Format a compound condition with operators."""
-        # This is simplified - we'd need to recursively format left and right conditions
+        from vulcan_core.conditions import Operator
+        
         operator_map = {
-            condition.operator.AND: "and",
-            condition.operator.OR: "or", 
-            condition.operator.XOR: "xor"
+            Operator.AND: "and",
+            Operator.OR: "or", 
+            Operator.XOR: "xor"
         }
         
         operator_str = operator_map.get(condition.operator, "unknown_op")
         
-        # For now, just show the fact references involved
-        fact_parts = []
-        for fact_ref in condition.facts:
-            class_name, attr_name = fact_ref.split(".", 1)
-            if class_name in fact_map:
-                fact_instance = fact_map[class_name]
-                actual_value = getattr(fact_instance, attr_name)
-                fact_parts.append(f"{fact_ref}|{actual_value}|")
-            else:
-                fact_parts.append(f"{fact_ref}|?|")
+        # Recursively format left and right parts
+        left_result = condition.left(*self._resolve_facts(condition.left))
+        right_result = condition.right(*self._resolve_facts(condition.right))
         
-        return f"{result} = {' ' + operator_str + ' '.join(fact_parts)}"
+        left_str = self._format_evaluation_string(condition.left, self._resolve_facts(condition.left), left_result)
+        right_str = self._format_evaluation_string(condition.right, self._resolve_facts(condition.right), right_result)
+        
+        # Extract just the expression part (after the "= ")
+        left_expr = left_str.split(" = ", 1)[1] if " = " in left_str else left_str
+        right_expr = right_str.split(" = ", 1)[1] if " = " in right_str else right_str
+        
+        compound_expr = f"{left_expr} {operator_str} {right_expr}"
+        
+        if condition.inverted:
+            compound_expr = f"not({compound_expr})"
+        
+        return f"{result} = {compound_expr}"
     
     def _format_ai_condition(self, condition, fact_map: dict, result: bool) -> str:
         """Format an AI condition with its template."""
@@ -457,31 +501,23 @@ class RuleEngine:
         else:
             return f"{result} = {template}"
     
-    def _extract_action_consequences(self, action, resolved_facts: list[Fact]) -> list:
+    def _extract_action_consequences_from_result(self, result) -> list:
         """
-        Extract the consequences that will result from executing an action.
+        Extract consequences from an already-executed action result.
         """
         from vulcan_core.reporting import RuleMatchConsequence
         
         consequences = []
         
-        # Execute the action to get the result
-        try:
-            result = action(*self._resolve_facts(action))
-            
-            # Handle different result types
-            if isinstance(result, tuple):
-                # Multiple facts/partials returned
-                for item in result:
-                    consequences.extend(self._extract_fact_consequences(item))
-            else:
-                # Single fact/partial returned
-                consequences.extend(self._extract_fact_consequences(result))
+        # Handle different result types
+        if isinstance(result, tuple):
+            # Multiple facts/partials returned
+            for item in result:
+                consequences.extend(self._extract_fact_consequences(item))
+        else:
+            # Single fact/partial returned
+            consequences.extend(self._extract_fact_consequences(result))
                 
-        except Exception as e:
-            # If action execution fails, log it but don't crash
-            logger.debug(f"Failed to extract consequences from action: {e}")
-        
         return consequences
     
     def _extract_fact_consequences(self, fact_or_partial) -> list:
@@ -498,7 +534,9 @@ class RuleEngine:
             # Get the keyword arguments (the attributes being set)
             keywords = fact_or_partial.keywords
             for attr_name, value in keywords.items():
-                consequences.append(RuleMatchConsequence(fact_name, attr_name, value))
+                # Resolve fact references if the value is a reference
+                resolved_value = self._resolve_fact_reference(value)
+                consequences.append(RuleMatchConsequence(fact_name, attr_name, resolved_value))
                 
         else:
             # It's a full fact instance
@@ -515,3 +553,34 @@ class RuleEngine:
             consequences.append(RuleMatchConsequence(fact_name, None, fact_dict))
         
         return consequences
+    
+    def _resolve_fact_reference(self, value):
+        """Resolve a fact reference (like AnotherFact.value) to its actual value."""
+        # Check if this looks like a fact reference
+        if hasattr(value, '__class__') and hasattr(value.__class__, '__name__'):
+            if hasattr(value.__class__, '__module__') and 'vulcan_core' in value.__class__.__module__:
+                # This is likely a Fact class - check if it's being used as a reference
+                pass
+        
+        # For now, if the value is a string and looks like a fact reference, try to resolve it
+        if isinstance(value, str) and '.' in value and '{' in value and '}' in value:
+            # This looks like an unresolved template string
+            return value
+            
+        # Otherwise try to get the actual value from our fact store
+        # This is a simplified implementation - in reality we'd need more sophisticated parsing
+        try:
+            # Check if this is a Fact attribute reference  
+            value_str = str(value)
+            if '.' in value_str and not value_str.startswith('{'):
+                # Might be a fact reference like "AnotherFact.value"
+                parts = value_str.split('.')
+                if len(parts) == 2:
+                    fact_name, attr_name = parts
+                    if fact_name in self._facts:
+                        fact_instance = self._facts[fact_name]
+                        return getattr(fact_instance, attr_name)
+        except Exception:
+            pass
+        
+        return value

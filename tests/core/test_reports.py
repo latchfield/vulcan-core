@@ -25,6 +25,7 @@ class Foo(Fact):
 
 class Bar(Fact):
     baz: int = 0
+    biff: str = ""
 
 
 def test_rule_match_consequence_to_dict():
@@ -287,3 +288,59 @@ def test_rule_engine_detailed_evaluation_format():
     if match["consequences"]:  # Only check if there are consequences
         assert "Bar.baz" in match["consequences"]
         assert match["consequences"]["Bar.baz"] == 23
+
+
+def test_rule_engine_example_scenario():
+    """Test scenario similar to the example_rules.py to demonstrate functionality."""
+    engine = RuleEngine()
+    
+    # Starting facts similar to example
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0, biff=""))
+    
+    # Rule 1 - Simple or condition
+    engine.rule(
+        name="Update if either bar or biz are True",
+        when=condition(lambda: Foo.bar or Foo.biz),
+        then=action(partial(Bar, baz=23)),
+    )
+    
+    # Rule 2 - Compound condition with inverse
+    engine.rule(
+        name="Update Bar if both bar and biz are True",
+        when=condition(lambda: Foo.bar and Foo.biz),
+        then=action(partial(Bar, biff="then_action")),
+        inverse=action(partial(Bar, biff="inverse_action")),
+    )
+    
+    # Rule 3 - Condition that evaluates False with no inverse
+    engine.rule(
+        when=condition(lambda: Foo.biz),
+        then=action(partial(Foo, bar=False)),
+    )
+    
+    engine.evaluate(trace=True)
+    
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    # Validate structure
+    assert "report" in parsed
+    assert "iterations" in parsed["report"]
+    
+    iterations = parsed["report"]["iterations"]
+    assert len(iterations) >= 1
+    
+    # Check first iteration
+    iteration = iterations[0]
+    assert iteration["id"] == 1
+    assert "matches" in iteration
+    assert len(iteration["matches"]) >= 2  # Should have at least 2 rule matches
+    
+    # Validate matches have required fields
+    for match in iteration["matches"]:
+        assert "rule" in match
+        assert "timestamp" in match
+        assert "elapsed" in match
+        assert "evaluation" in match
+        assert "consequences" in match
