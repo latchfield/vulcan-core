@@ -393,6 +393,39 @@ def test_rule_engine_context_handling():
     assert long_value_found
 
 
+def test_rule_engine_ai_rationale_extraction():
+    """Test that AI condition rationale extraction works."""
+    from vulcan_core.conditions import AICondition
+    from unittest.mock import Mock
+    
+    # Test the rationale extraction method directly
+    engine = RuleEngine()
+    
+    # Mock AI condition with rationale
+    mock_chain = Mock()
+    mock_model = Mock()
+    
+    ai_condition = AICondition(
+        facts=("MyTestFact.long_value",),
+        chain=mock_chain,
+        model=mock_model,
+        system_template="You are a helpful assistant",
+        inquiry_template="Is {MyTestFact.long_value} an example?",
+    )
+    
+    # Set the rationale using the post_init approach
+    object.__setattr__(ai_condition, "_rationale", "This is a test rationale for AI decision")
+    
+    # Test the rationale extraction
+    rationale = engine._extract_ai_rationale(ai_condition)
+    assert rationale == "This is a test rationale for AI decision"
+    
+    # Test with a regular condition (should return None)
+    regular_condition = condition(lambda: True)
+    rationale = engine._extract_ai_rationale(regular_condition)
+    assert rationale is None
+
+
 def test_rule_engine_example_scenario():
     """Test scenario similar to the example_rules.py to demonstrate functionality."""
     engine = RuleEngine()
