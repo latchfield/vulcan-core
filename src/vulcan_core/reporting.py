@@ -30,10 +30,15 @@ class RuleMatchContext:
     """Represents context information for values referenced in conditions."""
     fact_attribute: str
     value: Any
+    is_multiline: bool = False
     
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML serialization."""
-        return {self.fact_attribute: self.value}
+        if self.is_multiline and isinstance(self.value, str):
+            # Use YAML literal scalar format for multiline strings
+            return {self.fact_attribute: self.value}
+        else:
+            return {self.fact_attribute: self.value}
 
 
 @dataclass
@@ -54,7 +59,7 @@ class RuleMatch:
             "rule": self.rule,
             "timestamp": self.timestamp.isoformat() + "Z",
             "elapsed": round(self.elapsed, 3),
-            "evaluation": self.evaluation,
+            "evaluation": self._format_evaluation_for_yaml(),
         }
         
         # Handle consequences
@@ -80,6 +85,11 @@ class RuleMatch:
             result["rationale"] = self.rationale
             
         return result
+    
+    def _format_evaluation_for_yaml(self) -> str:
+        """Format the evaluation string, extracting long strings to context if needed."""
+        # For now, return as-is. We'll enhance this to extract long strings to context
+        return self.evaluation
 
 
 @dataclass

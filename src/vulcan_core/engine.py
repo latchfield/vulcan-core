@@ -380,6 +380,11 @@ class RuleEngine:
         # Create evaluation string representation
         evaluation_str = self._format_evaluation_string(rule.when, resolved_facts, rule_result)
         
+        # Extract context for long strings (>25 chars or multiline)
+        context = self._extract_context_from_evaluation_and_consequences(
+            rule.when, resolved_facts, consequences
+        )
+        
         return RuleMatch(
             rule=f"{rule_id}:{rule_name}",
             timestamp=rule_timestamp,
@@ -387,6 +392,7 @@ class RuleEngine:
             evaluation=evaluation_str,
             consequences=consequences,
             warnings=warnings or [],
+            context=context,
         )
     
     def _format_evaluation_string(self, condition, resolved_facts: list[Fact], result: bool) -> str:
@@ -644,3 +650,48 @@ class RuleEngine:
                 # This is a partial attribute update
                 fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
                 attribute_changes[fact_attr] = (rule_id, rule_name, consequence.value)
+    
+    def _extract_context_from_evaluation_and_consequences(self, condition, resolved_facts: list[Fact], 
+                                                         consequences: list) -> list:
+        """
+        Extract context for long strings (>25 chars or multiline) from evaluation and consequences.
+        """
+        from vulcan_core.reporting import RuleMatchContext
+        
+        context = []
+        
+        # Create a mapping of fact class names to actual instances for value lookup
+        fact_map = {fact.__class__.__name__: fact for fact in resolved_facts}
+        
+        # Check condition facts for long strings
+        for fact_ref in condition.facts:
+            class_name, attr_name = fact_ref.split(".", 1)
+            if class_name in fact_map:
+                fact_instance = fact_map[class_name]
+                actual_value = getattr(fact_instance, attr_name)
+                
+                if self._should_extract_to_context(actual_value):
+                    is_multiline = isinstance(actual_value, str) and '\n' in actual_value
+                    context.append(RuleMatchContext(fact_ref, actual_value, is_multiline))
+        
+        # Check consequences for long strings
+        for consequence in consequences:
+            if self._should_extract_to_context(consequence.value):
+                if consequence.attribute_name:
+                    fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
+                else:
+                    fact_attr = consequence.fact_name
+                
+                is_multiline = isinstance(consequence.value, str) and '\n' in consequence.value
+                context.append(RuleMatchContext(fact_attr, consequence.value, is_multiline))
+        
+        return context
+    
+    def _should_extract_to_context(self, value) -> bool:
+        """
+        Determine if a value should be extracted to context.
+        Returns True for strings longer than 25 characters or multiline strings.
+        """
+        if isinstance(value, str):
+            return len(value) > 25 or '\n' in value
+        return False
