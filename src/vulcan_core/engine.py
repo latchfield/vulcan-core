@@ -453,6 +453,10 @@ class RuleEngine:
                             f"{class_name}.{attr_name}", replacement
                         )
                 
+                # Handle conditions with no fact references
+                if not condition.facts and formatted_expr.strip():
+                    formatted_expr = "condition()"
+                
                 # Apply inversion if needed
                 if condition.inverted:
                     formatted_expr = f"not({formatted_expr})"
@@ -482,7 +486,10 @@ class RuleEngine:
                 fact_parts.append(f"{fact_ref}|?|")
         
         # Simple joining for multiple facts
-        if len(fact_parts) == 1:
+        if not fact_parts:
+            # Handle conditions with no fact references
+            evaluation_expr = "condition()"
+        elif len(fact_parts) == 1:
             evaluation_expr = fact_parts[0]
         else:
             evaluation_expr = " and ".join(fact_parts)

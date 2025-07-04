@@ -28,6 +28,28 @@ class Bar(Fact):
     biff: str = ""
 
 
+class AnotherFact(Fact):
+    value: int = 23
+
+
+class YetAnotherFact(Fact):
+    value: str = "some_value"
+
+
+class MySummaryFact(Fact):
+    value: bool = False
+
+
+class MyTestFact(Fact):
+    short_value: str = "short"
+    long_value: str = "This is a very long string that exceeds twenty-five characters"
+    multiline_value: str = "Line 1\nLine 2\nLine 3"
+
+
+class ResultTestFact(Fact):
+    status: str = ""
+
+
 def test_rule_match_consequence_to_dict():
     """Test RuleMatchConsequence serialization."""
     # Test with attribute
@@ -336,16 +358,6 @@ def test_rule_engine_warnings_detection():
     assert "Bar.baz" in warning
 
 
-class MyTestFact(Fact):
-    short_value: str = "short"
-    long_value: str = "This is a very long string that exceeds twenty-five characters"
-    multiline_value: str = "Line 1\nLine 2\nLine 3"
-
-
-class ResultTestFact(Fact):
-    status: str = ""
-
-
 def test_rule_engine_context_handling():
     """Test that long strings and multiline content are extracted to context."""
     
@@ -480,3 +492,192 @@ def test_rule_engine_example_scenario():
         assert "elapsed" in match
         assert "evaluation" in match
         assert "consequences" in match
+
+
+def test_fact_reference_resolution_in_consequences():
+    """Test that fact references in consequences are properly resolved."""
+    engine = RuleEngine()
+    
+    # Setup facts
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0, biff=""))
+    engine.fact(AnotherFact(value=23))
+    engine.fact(YetAnotherFact(value="resolved_value"))
+    
+    # Rule that uses fact references in consequences
+    engine.rule(
+        name="Test fact reference resolution",
+        when=condition(lambda: Foo.bar),
+        then=action(partial(Bar, baz=AnotherFact.value, biff=YetAnotherFact.value)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    # Check that consequences have resolved values, not template strings
+    match = parsed["report"]["iterations"][0]["matches"][0]
+    consequences = match["consequences"]
+    
+    assert consequences["Bar.baz"] == 23  # Should be resolved, not "{AnotherFact.value}"
+    assert consequences["Bar.biff"] == "resolved_value"  # Should be resolved
+
+
+def test_rule_ordering_warnings_with_fact_references():
+    """Test rule ordering warnings show resolved fact references."""
+    engine = RuleEngine()
+    
+    # Setup facts
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0, biff=""))
+    engine.fact(AnotherFact(value=23))
+    
+    # Two rules that both modify the same attribute with fact references
+    engine.rule(
+        name="First Rule",
+        when=condition(lambda: Foo.bar),
+        then=action(partial(Bar, baz=AnotherFact.value)),
+    )
+    
+    engine.rule(
+        name="Second Rule",
+        when=condition(lambda: Foo.bar),  # Same condition, fires in same iteration
+        then=action(partial(Bar, baz=42)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    # Find the match with warnings
+    second_match = parsed["report"]["iterations"][0]["matches"][1]
+    assert "warnings" in second_match
+    assert len(second_match["warnings"]) > 0
+    
+    warning = second_match["warnings"][0]
+    assert "Rule Ordering" in warning
+    assert "(Bar.baz|23|)" in warning  # Should show resolved value, not template
+    assert "(Bar.baz|42|)" in warning
+
+
+def test_yaml_none_representation():
+    """Test that None values are represented as 'None' not 'null' in YAML."""
+    engine = RuleEngine()
+    
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0, biff=""))
+    
+    # Rule that evaluates to False and has no consequences
+    engine.rule(
+        name="No consequences rule",
+        when=condition(lambda: Foo.biz),  # False
+        then=action(partial(Bar, baz=99)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    
+    # Check that None is represented as 'None' not 'null'
+    assert "consequences: None" in yaml_output
+    assert "consequences: null" not in yaml_output
+    assert "!!null" not in yaml_output
+
+
+def test_long_string_context_extraction():
+    """Test that long strings are extracted to context and not shown inline."""
+    engine = RuleEngine()
+    
+    engine.fact(MyTestFact(
+        short_value="short",
+        long_value="This is a very long string that exceeds twenty-five characters and should be extracted",
+        multiline_value="Line 1\nLine 2\nLine 3"
+    ))
+    engine.fact(ResultTestFact(status=""))
+    
+    # Rule using long string
+    engine.rule(
+        name="Long string test",
+        when=condition(lambda: MyTestFact.long_value and MyTestFact.multiline_value),
+        then=action(partial(ResultTestFact, status="updated")),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    match = parsed["report"]["iterations"][0]["matches"][0]
+    
+    # Long strings should not appear inline in evaluation
+    evaluation = match["evaluation"]
+    assert "MyTestFact.long_value" in evaluation  # Reference should be present
+    assert "This is a very long string" not in evaluation  # Long value should not be inline
+    
+    # Long strings should appear in context
+    assert "context" in match
+    context_values = [list(ctx.values())[0] for ctx in match["context"]]
+    assert any("This is a very long string" in str(val) for val in context_values)
+
+
+def test_compound_conditions_with_empty_parts():
+    """Test compound conditions that might have empty or no-fact parts."""
+    engine = RuleEngine()
+    
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(MySummaryFact(value=False))
+    
+    # Create a compound condition with a part that has no fact references
+    fact_cond = condition(lambda: Foo.bar)
+    empty_cond = condition(lambda: True)  # No fact references
+    compound = fact_cond & empty_cond
+    
+    engine.rule(
+        name="Compound with empty part",
+        when=compound,
+        then=action(partial(MySummaryFact, value=True)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    match = parsed["report"]["iterations"][0]["matches"][0]
+    evaluation = match["evaluation"]
+    
+    # Should handle empty condition parts gracefully
+    assert "condition()" in evaluation  # Empty part should be represented
+    assert " and " in evaluation  # Should have proper operator
+    assert "Foo.bar|True|" in evaluation  # Fact part should be present
+
+
+def test_no_hard_line_wrapping():
+    """Test that YAML output doesn't contain hard line wrapping."""
+    engine = RuleEngine()
+    
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0, biff=""))
+    engine.fact(AnotherFact(value=23))
+    
+    # Create a rule with long warning messages
+    engine.rule(
+        name="Very long rule name that could potentially cause line wrapping issues in YAML output",
+        when=condition(lambda: Foo.bar),
+        then=action(partial(Bar, baz=AnotherFact.value)),
+    )
+    
+    engine.rule(
+        name="Another very long rule name that should also trigger warnings",
+        when=condition(lambda: Foo.bar),
+        then=action(partial(Bar, baz=42)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    
+    # Check that warning messages aren't hard-wrapped
+    lines = yaml_output.split('\n')
+    for line in lines:
+        if "Rule Ordering" in line:
+            # The warning should be on a single line (after the '- ')
+            assert line.strip().startswith('- Rule Ordering')
+            # Should not have continuation on next line
+            break
