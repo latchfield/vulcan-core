@@ -631,9 +631,13 @@ class RuleEngine:
     def _check_for_rule_ordering_warnings(self, consequences: list, 
                                          attribute_changes: dict, current_rule: Rule) -> list[str]:
         """
-        Check for rule ordering warnings when consequences override previous attributes.
+        Check for rule ordering warnings when consequences override previous attributes,
+        and fact replacement warnings when complete facts are used.
         """
         warnings = []
+        
+        current_rule_id = str(current_rule.id)[:8]
+        current_rule_name = current_rule.name or "None"
         
         for consequence in consequences:
             if consequence.attribute_name:
@@ -643,8 +647,6 @@ class RuleEngine:
                 if fact_attr in attribute_changes:
                     # This attribute was already set by another rule in this iteration
                     prev_rule_id, prev_rule_name, prev_value = attribute_changes[fact_attr]
-                    current_rule_id = str(current_rule.id)[:8]
-                    current_rule_name = current_rule.name or "None"
                     
                     warning_msg = (
                         f"Rule Ordering | Rule:{prev_rule_id} consequence "
@@ -654,6 +656,14 @@ class RuleEngine:
                         f"within the same iteration"
                     )
                     warnings.append(warning_msg)
+            else:
+                # This is a complete fact replacement
+                warning_msg = (
+                    f"Fact Replacement | Rule:{current_rule_id} consequence replaces "
+                    f"({consequence.fact_name}), potentially altering unintended attributes. "
+                    f"Consider using a partial update to ensure only intended changes."
+                )
+                warnings.append(warning_msg)
         
         return warnings
     

@@ -50,6 +50,11 @@ class ResultTestFact(Fact):
     status: str = ""
 
 
+class MyNonPartialFact(Fact):
+    value: int = 0
+    another_attribute: int = 50
+
+
 def test_rule_match_consequence_to_dict():
     """Test RuleMatchConsequence serialization."""
     # Test with attribute
@@ -681,3 +686,44 @@ def test_no_hard_line_wrapping():
             assert line.strip().startswith('- Rule Ordering')
             # Should not have continuation on next line
             break
+
+
+def test_fact_replacement_warnings():
+    """Test that fact replacement warnings are generated for complete fact objects."""
+    engine = RuleEngine()
+    
+    # Set up initial facts
+    engine.fact(MySummaryFact(value=True))
+    
+    # Add a rule that uses a complete fact object (not partial)
+    engine.rule(
+        name="Complete fact replacement rule",
+        when=condition(lambda: MySummaryFact.value),
+        then=action(MyNonPartialFact(value=42, another_attribute=100)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    
+    # Parse the YAML to check the structure
+    report_data = yaml.safe_load(yaml_output)
+    
+    # Find the rule match that should have the warning
+    matches = report_data["report"]["iterations"][0]["matches"]
+    assert len(matches) == 1
+    
+    match = matches[0]
+    assert "warnings" in match
+    assert len(match["warnings"]) == 1
+    
+    warning = match["warnings"][0]
+    assert "Fact Replacement" in warning
+    assert "MyNonPartialFact" in warning
+    assert "potentially altering unintended attributes" in warning
+    assert "Consider using a partial update" in warning
+    
+    # Check that the consequences show the complete fact
+    consequences = match["consequences"]
+    assert "MyNonPartialFact" in consequences
+    assert consequences["MyNonPartialFact"]["value"] == 42
+    assert consequences["MyNonPartialFact"]["another_attribute"] == 100
