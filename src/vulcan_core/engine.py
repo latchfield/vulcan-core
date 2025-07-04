@@ -380,6 +380,9 @@ class RuleEngine:
         # Create evaluation string representation
         evaluation_str = self._format_evaluation_string(rule.when, resolved_facts, rule_result)
         
+        # Extract rationale for AI conditions
+        rationale = self._extract_ai_rationale(rule.when)
+        
         # Extract context for long strings (>25 chars or multiline)
         context = self._extract_context_from_evaluation_and_consequences(
             rule.when, resolved_facts, consequences
@@ -393,6 +396,7 @@ class RuleEngine:
             consequences=consequences,
             warnings=warnings or [],
             context=context,
+            rationale=rationale,
         )
     
     def _format_evaluation_string(self, condition, resolved_facts: list[Fact], result: bool) -> str:
@@ -510,19 +514,22 @@ class RuleEngine:
         template = condition.inquiry_template
         
         # Simple substitution for now - replace fact references with values
+        formatted_template = template
         for fact_ref in condition.facts:
             class_name, attr_name = fact_ref.split(".", 1)
             if class_name in fact_map:
                 fact_instance = fact_map[class_name]
                 actual_value = getattr(fact_instance, attr_name)
-                # Replace placeholders in template
-                template = template.replace(f"{{{class_name}.{attr_name}}}", f"{{{class_name}.{attr_name}|{actual_value}|}}")
+                # Replace placeholders in template with inline values
+                placeholder = f"{{{class_name}.{attr_name}}}"
+                replacement = f"{{{class_name}.{attr_name}|{actual_value}|}}"
+                formatted_template = formatted_template.replace(placeholder, replacement)
         
         # Handle negation if condition is inverted
         if condition.inverted:
-            return f"{result} = not({template})"
+            return f"{result} = not({formatted_template})"
         else:
-            return f"{result} = {template}"
+            return f"{result} = {formatted_template}"
     
     def _extract_action_consequences_from_result(self, result) -> list:
         """
@@ -695,3 +702,26 @@ class RuleEngine:
         if isinstance(value, str):
             return len(value) > 25 or '\n' in value
         return False
+    
+    def _extract_ai_rationale(self, condition) -> str | None:
+        """
+        Extract rationale from AI conditions after evaluation.
+        """
+        from vulcan_core.conditions import AICondition, CompoundCondition
+        
+        if isinstance(condition, AICondition):
+            return condition.rationale
+        elif isinstance(condition, CompoundCondition):
+            # Check left and right sides for AI conditions
+            left_rationale = self._extract_ai_rationale(condition.left)
+            right_rationale = self._extract_ai_rationale(condition.right)
+            
+            # Combine rationales if both exist
+            if left_rationale and right_rationale:
+                return f"{left_rationale}; {right_rationale}"
+            elif left_rationale:
+                return left_rationale
+            elif right_rationale:
+                return right_rationale
+        
+        return None
