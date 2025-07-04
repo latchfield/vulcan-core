@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from functools import cached_property, partial
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -16,6 +18,7 @@ from vulcan_core.models import DeclaresFacts, Fact
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from vulcan_core.actions import Action
     from vulcan_core.conditions import Expression
+    from vulcan_core.reporting import EvaluationReport
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +69,15 @@ class RuleEngine:
     Methods:
         rule(self, *, name: str | None = None, when: LogicEvaluator, then: BaseAction, inverse: BaseAction | None = None): Adds a rule to the rule engine.
         update_facts(self, fact: tuple[Fact | partial[Fact], ...] | partial[Fact] | Fact) -> Iterator[str]: Updates the facts in the working memory.
-        evaluate(self): Evaluates the rules based on the current facts in working memory.
+        evaluate(self, trace: bool = False): Evaluates the rules based on the current facts in working memory.
+        yaml_report(self): Returns the YAML report of the last evaluation (if tracing was enabled).
     """
 
     enabled: bool = False
     recusion_limit: int = 10
     _facts: dict[str, Fact] = field(default_factory=dict, init=False)
     _rules: dict[str, list[Rule]] = field(default_factory=dict, init=False)
+    _evaluation_report: EvaluationReport | None = field(default=None, init=False)
 
     @cached_property
     def facts(self) -> MappingProxyType[str, Fact]:
@@ -188,12 +193,23 @@ class RuleEngine:
         keys = {key.split(".")[0]: key for key in declared.facts}.values()
         return [self._facts[key.split(".")[0]] for key in keys]
 
-    def evaluate(self, fact: Fact | partial[Fact] | None = None):
+    def evaluate(self, fact: Fact | partial[Fact] | None = None, trace: bool = False):
         """
         Cascading evaluation of rules based on the facts in working memory.
 
         If provided a fact, will update and evaluate immediately. Otherwise all rules will be evaluated.
+        
+        Args:
+            fact: Optional fact to update and evaluate immediately
+            trace: Whether to track evaluation details for reporting
         """
+        # Reset tracking data on each evaluate() call
+        if trace:
+            from vulcan_core.reporting import EvaluationReport
+            self._evaluation_report = EvaluationReport()
+        else:
+            self._evaluation_report = None
+            
         fired_rules: set[UUID] = set()
         consequence: set[str] = set()
 
@@ -217,6 +233,13 @@ class RuleEngine:
                 msg = f"Recursion limit of {self.recusion_limit} reached"
                 raise RecursionLimitError(msg)
 
+            # Start timing the iteration
+            iteration_start = time.time()
+            iteration_timestamp = datetime.now()
+            
+            # Track matches for this iteration
+            iteration_matches = []
+            
             for fact_str, rules in self._rules.items():
                 if fact_str in scope:
                     for rule in rules:
@@ -230,6 +253,12 @@ class RuleEngine:
                         except KeyError as e:
                             logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
                             continue
+
+                        # Track rule evaluation if tracing
+                        if trace:
+                            match_data = self._trace_rule_evaluation(rule, resolved_facts)
+                            if match_data:
+                                iteration_matches.append(match_data)
 
                         action = None
                         fired_rules.add(rule.id)
@@ -246,6 +275,18 @@ class RuleEngine:
                             facts = self._update_facts(result)
                             consequence.update(facts)
 
+            # Record iteration if tracing and there were matches
+            if trace and iteration_matches:
+                from vulcan_core.reporting import ReportIteration
+                iteration_elapsed = time.time() - iteration_start
+                report_iteration = ReportIteration(
+                    id=iteration + 1,
+                    timestamp=iteration_timestamp,
+                    elapsed=iteration_elapsed,
+                    matches=iteration_matches
+                )
+                self._evaluation_report.iterations.append(report_iteration)
+
             # If rules updated some facts, prepare for the next iteration
             if consequence:
                 scope = consequence
@@ -253,3 +294,44 @@ class RuleEngine:
                 fired_rules.clear()
             else:
                 break
+
+    def yaml_report(self) -> str:
+        """
+        Returns the YAML report of the last evaluation (if tracing was enabled).
+        
+        Returns:
+            str: YAML-formatted report
+            
+        Raises:
+            RuntimeError: If no report is available (tracing not enabled)
+        """
+        if not self._evaluation_report:
+            msg = "No evaluation report available. Use evaluate(trace=True) to enable tracing."
+            raise RuntimeError(msg)
+        
+        return self._evaluation_report.to_yaml()
+    
+    def _trace_rule_evaluation(self, rule: Rule, resolved_facts: list[Fact]) -> object:
+        """
+        Trace the evaluation of a rule for reporting purposes.
+        
+        Args:
+            rule: The rule being evaluated
+            resolved_facts: The resolved facts for the rule
+            
+        Returns:
+            RuleMatch object with evaluation details
+        """
+        # This is a placeholder - we'll implement the actual tracing logic
+        # after we have the basic structure working
+        from vulcan_core.reporting import RuleMatch
+        
+        rule_name = rule.name or "None"
+        rule_id = str(rule.id)[:8]  # Use first 8 chars of UUID for readability
+        
+        return RuleMatch(
+            rule=f"{rule_id}:{rule_name}",
+            timestamp=datetime.now(),
+            elapsed=0.001,  # Placeholder
+            evaluation="Placeholder evaluation",
+        )
