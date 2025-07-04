@@ -240,6 +240,9 @@ class RuleEngine:
             # Track matches for this iteration
             iteration_matches = []
             
+            # Track attribute changes within this iteration for warnings
+            iteration_attribute_changes = {}  # {fact_attr: (rule_id, rule_name, value)}
+            
             for fact_str, rules in self._rules.items():
                 if fact_str in scope:
                     for rule in rules:
@@ -273,10 +276,22 @@ class RuleEngine:
                             
                             # Execute action and capture consequences
                             consequences = []
+                            warnings = []
                             if action:
                                 # Execute the action to get the result and consequences
                                 result = action(*self._resolve_facts(action))
                                 consequences = self._extract_action_consequences_from_result(result)
+                                
+                                # Check for attribute conflicts and generate warnings
+                                warnings = self._check_for_rule_ordering_warnings(
+                                    consequences, iteration_attribute_changes, rule
+                                )
+                                
+                                # Update the attribute changes tracker
+                                self._update_attribute_changes_tracker(
+                                    consequences, iteration_attribute_changes, rule
+                                )
+                                
                                 # Update facts
                                 facts = self._update_facts(result)
                                 consequence.update(facts)
@@ -284,7 +299,7 @@ class RuleEngine:
                             # Create match data
                             match_data = self._trace_rule_evaluation(
                                 rule, resolved_facts, rule_result, action, 
-                                rule_timestamp, time.time() - rule_start, consequences
+                                rule_timestamp, time.time() - rule_start, consequences, warnings
                             )
                             iteration_matches.append(match_data)
                         else:
@@ -340,7 +355,7 @@ class RuleEngine:
     
     def _trace_rule_evaluation(self, rule: Rule, resolved_facts: list[Fact], 
                                rule_result: bool, action, rule_timestamp: datetime, 
-                               elapsed: float, consequences: list) -> object:
+                               elapsed: float, consequences: list, warnings: list = None) -> object:
         """
         Trace the evaluation of a rule for reporting purposes.
         
@@ -352,6 +367,7 @@ class RuleEngine:
             rule_timestamp: When the rule evaluation started
             elapsed: How long the rule evaluation took
             consequences: Already computed consequences from action execution
+            warnings: Any warnings generated during rule execution
             
         Returns:
             RuleMatch object with evaluation details
@@ -370,6 +386,7 @@ class RuleEngine:
             elapsed=elapsed,
             evaluation=evaluation_str,
             consequences=consequences,
+            warnings=warnings or [],
         )
     
     def _format_evaluation_string(self, condition, resolved_facts: list[Fact], result: bool) -> str:
@@ -584,3 +601,46 @@ class RuleEngine:
             pass
         
         return value
+    
+    def _check_for_rule_ordering_warnings(self, consequences: list, 
+                                         attribute_changes: dict, current_rule: Rule) -> list[str]:
+        """
+        Check for rule ordering warnings when consequences override previous attributes.
+        """
+        warnings = []
+        
+        for consequence in consequences:
+            if consequence.attribute_name:
+                # This is a partial attribute update
+                fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
+                
+                if fact_attr in attribute_changes:
+                    # This attribute was already set by another rule in this iteration
+                    prev_rule_id, prev_rule_name, prev_value = attribute_changes[fact_attr]
+                    current_rule_id = str(current_rule.id)[:8]
+                    current_rule_name = current_rule.name or "None"
+                    
+                    warning_msg = (
+                        f"Rule Ordering | Rule:{prev_rule_id} consequence "
+                        f"({consequence.fact_name}.{consequence.attribute_name}|{prev_value}|) "
+                        f"was overridden by Rule:{current_rule_id} "
+                        f"({consequence.fact_name}.{consequence.attribute_name}|{consequence.value}|) "
+                        f"within the same iteration"
+                    )
+                    warnings.append(warning_msg)
+        
+        return warnings
+    
+    def _update_attribute_changes_tracker(self, consequences: list, 
+                                        attribute_changes: dict, current_rule: Rule):
+        """
+        Update the attribute changes tracker with new consequences.
+        """
+        rule_id = str(current_rule.id)[:8]
+        rule_name = current_rule.name or "None"
+        
+        for consequence in consequences:
+            if consequence.attribute_name:
+                # This is a partial attribute update
+                fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
+                attribute_changes[fact_attr] = (rule_id, rule_name, consequence.value)

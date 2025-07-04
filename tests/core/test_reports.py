@@ -290,6 +290,52 @@ def test_rule_engine_detailed_evaluation_format():
         assert match["consequences"]["Bar.baz"] == 23
 
 
+def test_rule_engine_warnings_detection():
+    """Test that rule ordering warnings are detected when attributes are overridden."""
+    engine = RuleEngine()
+    
+    # Starting facts
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0, biff=""))
+    
+    # Rule 1 - Sets Bar.baz to 23
+    engine.rule(
+        name="First Rule",
+        when=condition(lambda: Foo.bar),
+        then=action(partial(Bar, baz=23)),
+    )
+    
+    # Rule 2 - Also sets Bar.baz to 42, creating a conflict
+    engine.rule(
+        name="Second Rule", 
+        when=condition(lambda: Foo.bar),  # Same condition, will fire in same iteration
+        then=action(partial(Bar, baz=42)),
+    )
+    
+    engine.evaluate(trace=True)
+    
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    # Find the match that should have warnings
+    iterations = parsed["report"]["iterations"]
+    assert len(iterations) >= 1
+    
+    iteration = iterations[0]
+    matches = iteration["matches"]
+    assert len(matches) >= 2
+    
+    # The second match should have a warning about overriding the first
+    second_match = matches[1]
+    assert "warnings" in second_match
+    assert len(second_match["warnings"]) > 0
+    
+    warning = second_match["warnings"][0]
+    assert "Rule Ordering" in warning
+    assert "was overridden by" in warning
+    assert "Bar.baz" in warning
+
+
 def test_rule_engine_example_scenario():
     """Test scenario similar to the example_rules.py to demonstrate functionality."""
     engine = RuleEngine()
