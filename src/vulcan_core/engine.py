@@ -440,10 +440,17 @@ class RuleEngine:
                     if class_name in fact_map:
                         fact_instance = fact_map[class_name]
                         actual_value = getattr(fact_instance, attr_name)
-                        # Replace the fact reference with the inline value format
+                        
+                        # Check if the value should be extracted to context
+                        if self._should_extract_to_context(actual_value):
+                            # For long strings, just show the reference
+                            replacement = f"{class_name}.{attr_name}"
+                        else:
+                            # For short strings, show the value inline
+                            replacement = f"{class_name}.{attr_name}|{actual_value}|"
+                        
                         formatted_expr = formatted_expr.replace(
-                            f"{class_name}.{attr_name}", 
-                            f"{class_name}.{attr_name}|{actual_value}|"
+                            f"{class_name}.{attr_name}", replacement
                         )
                 
                 # Apply inversion if needed
@@ -463,7 +470,14 @@ class RuleEngine:
             if class_name in fact_map:
                 fact_instance = fact_map[class_name]
                 actual_value = getattr(fact_instance, attr_name)
-                fact_parts.append(f"{fact_ref}|{actual_value}|")
+                
+                # Check if the value should be extracted to context
+                if self._should_extract_to_context(actual_value):
+                    # For long strings, just show the reference
+                    fact_parts.append(f"{fact_ref}")
+                else:
+                    # For short strings, show the value inline
+                    fact_parts.append(f"{fact_ref}|{actual_value}|")
             else:
                 fact_parts.append(f"{fact_ref}|?|")
         
@@ -520,9 +534,16 @@ class RuleEngine:
             if class_name in fact_map:
                 fact_instance = fact_map[class_name]
                 actual_value = getattr(fact_instance, attr_name)
-                # Replace placeholders in template with inline values
+                
+                # Check if the value should be extracted to context
                 placeholder = f"{{{class_name}.{attr_name}}}"
-                replacement = f"{{{class_name}.{attr_name}|{actual_value}|}}"
+                if self._should_extract_to_context(actual_value):
+                    # For long strings, just show the reference
+                    replacement = f"{{{class_name}.{attr_name}}}"
+                else:
+                    # For short strings, show the value inline
+                    replacement = f"{{{class_name}.{attr_name}|{actual_value}|}}"
+                
                 formatted_template = formatted_template.replace(placeholder, replacement)
         
         # Handle negation if condition is inverted
@@ -585,33 +606,18 @@ class RuleEngine:
         return consequences
     
     def _resolve_fact_reference(self, value):
-        """Resolve a fact reference (like AnotherFact.value) to its actual value."""
-        # Check if this looks like a fact reference
-        if hasattr(value, '__class__') and hasattr(value.__class__, '__name__'):
-            if hasattr(value.__class__, '__module__') and 'vulcan_core' in value.__class__.__module__:
-                # This is likely a Fact class - check if it's being used as a reference
-                pass
-        
-        # For now, if the value is a string and looks like a fact reference, try to resolve it
-        if isinstance(value, str) and '.' in value and '{' in value and '}' in value:
-            # This looks like an unresolved template string
-            return value
+        """Resolve a fact reference (like {AnotherFact.value}) to its actual value."""
+        if isinstance(value, str) and value.startswith('{') and value.endswith('}'):
+            # This is a template string like "{FactName.attribute}"
+            template_content = value[1:-1]  # Remove curly braces
             
-        # Otherwise try to get the actual value from our fact store
-        # This is a simplified implementation - in reality we'd need more sophisticated parsing
-        try:
-            # Check if this is a Fact attribute reference  
-            value_str = str(value)
-            if '.' in value_str and not value_str.startswith('{'):
-                # Might be a fact reference like "AnotherFact.value"
-                parts = value_str.split('.')
+            if '.' in template_content:
+                parts = template_content.split('.', 1)
                 if len(parts) == 2:
                     fact_name, attr_name = parts
                     if fact_name in self._facts:
                         fact_instance = self._facts[fact_name]
                         return getattr(fact_instance, attr_name)
-        except Exception:
-            pass
         
         return value
     
@@ -661,16 +667,17 @@ class RuleEngine:
     def _extract_context_from_evaluation_and_consequences(self, condition, resolved_facts: list[Fact], 
                                                          consequences: list) -> list:
         """
-        Extract context for long strings (>25 chars or multiline) from evaluation and consequences.
+        Extract context for long strings (>25 chars or multiline) from evaluation - input data only.
         """
         from vulcan_core.reporting import RuleMatchContext
+        from vulcan_core.conditions import AICondition
         
         context = []
         
         # Create a mapping of fact class names to actual instances for value lookup
         fact_map = {fact.__class__.__name__: fact for fact in resolved_facts}
         
-        # Check condition facts for long strings
+        # Check condition facts for long strings - only extract input data for conditions
         for fact_ref in condition.facts:
             class_name, attr_name = fact_ref.split(".", 1)
             if class_name in fact_map:
@@ -681,16 +688,13 @@ class RuleEngine:
                     is_multiline = isinstance(actual_value, str) and '\n' in actual_value
                     context.append(RuleMatchContext(fact_ref, actual_value, is_multiline))
         
-        # Check consequences for long strings
-        for consequence in consequences:
-            if self._should_extract_to_context(consequence.value):
-                if consequence.attribute_name:
-                    fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
-                else:
-                    fact_attr = consequence.fact_name
-                
-                is_multiline = isinstance(consequence.value, str) and '\n' in consequence.value
-                context.append(RuleMatchContext(fact_attr, consequence.value, is_multiline))
+        # For AI conditions, also check if the inquiry template or rationale contains long strings
+        if isinstance(condition, AICondition):
+            # We might need to handle AI condition specific context differently
+            # For now, we'll rely on the fact references above
+            pass
+        
+        return context
         
         return context
     

@@ -125,9 +125,23 @@ class EvaluationReport:
     
     def to_yaml(self) -> str:
         """Convert the report to YAML format."""
+        # Create a custom representer for None values
+        def represent_none(dumper, data):
+            return dumper.represent_scalar('tag:yaml.org,2002:str', 'None')
+        
+        # Create a custom dumper to avoid global state issues
+        class CustomDumper(yaml.SafeDumper):
+            pass
+            
+        # Add the custom representer to our custom dumper
+        CustomDumper.add_representer(type(None), represent_none)
+        
+        # Also prevent hard-line wrapping by setting a high width
         return yaml.dump(
             self.to_dict(),
+            Dumper=CustomDumper,
             default_flow_style=False,
             allow_unicode=True,
-            sort_keys=False
+            sort_keys=False,
+            width=1000000  # Very large width to prevent wrapping
         )
