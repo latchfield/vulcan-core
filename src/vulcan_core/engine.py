@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from functools import cached_property, partial
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -16,6 +18,7 @@ from vulcan_core.models import DeclaresFacts, Fact
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from vulcan_core.actions import Action
     from vulcan_core.conditions import Expression
+    from vulcan_core.reporting import EvaluationReport
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +69,15 @@ class RuleEngine:
     Methods:
         rule(self, *, name: str | None = None, when: LogicEvaluator, then: BaseAction, inverse: BaseAction | None = None): Adds a rule to the rule engine.
         update_facts(self, fact: tuple[Fact | partial[Fact], ...] | partial[Fact] | Fact) -> Iterator[str]: Updates the facts in the working memory.
-        evaluate(self): Evaluates the rules based on the current facts in working memory.
+        evaluate(self, trace: bool = False): Evaluates the rules based on the current facts in working memory.
+        yaml_report(self): Returns the YAML report of the last evaluation (if tracing was enabled).
     """
 
     enabled: bool = False
     recusion_limit: int = 10
     _facts: dict[str, Fact] = field(default_factory=dict, init=False)
     _rules: dict[str, list[Rule]] = field(default_factory=dict, init=False)
+    _evaluation_report: EvaluationReport | None = field(default=None, init=False)
 
     @cached_property
     def facts(self) -> MappingProxyType[str, Fact]:
@@ -188,12 +193,23 @@ class RuleEngine:
         keys = {key.split(".")[0]: key for key in declared.facts}.values()
         return [self._facts[key.split(".")[0]] for key in keys]
 
-    def evaluate(self, fact: Fact | partial[Fact] | None = None):
+    def evaluate(self, fact: Fact | partial[Fact] | None = None, trace: bool = False):
         """
         Cascading evaluation of rules based on the facts in working memory.
 
         If provided a fact, will update and evaluate immediately. Otherwise all rules will be evaluated.
+        
+        Args:
+            fact: Optional fact to update and evaluate immediately
+            trace: Whether to track evaluation details for reporting
         """
+        # Reset tracking data on each evaluate() call
+        if trace:
+            from vulcan_core.reporting import EvaluationReport
+            self._evaluation_report = EvaluationReport()
+        else:
+            self._evaluation_report = None
+            
         fired_rules: set[UUID] = set()
         consequence: set[str] = set()
 
@@ -217,6 +233,16 @@ class RuleEngine:
                 msg = f"Recursion limit of {self.recusion_limit} reached"
                 raise RecursionLimitError(msg)
 
+            # Start timing the iteration
+            iteration_start = time.time()
+            iteration_timestamp = datetime.now()
+            
+            # Track matches for this iteration
+            iteration_matches = []
+            
+            # Track attribute changes within this iteration for warnings
+            iteration_attribute_changes = {}  # {fact_attr: (rule_id, rule_name, value)}
+            
             for fact_str, rules in self._rules.items():
                 if fact_str in scope:
                     for rule in rules:
@@ -231,20 +257,77 @@ class RuleEngine:
                             logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
                             continue
 
-                        action = None
                         fired_rules.add(rule.id)
 
-                        # Evaluate the rule's 'when' and determine which action to invoke
-                        if rule.when(*resolved_facts):
-                            action = rule.then
-                        elif rule.inverse:
-                            action = rule.inverse
+                        # Track rule evaluation if tracing
+                        if trace:
+                            rule_start = time.time()
+                            rule_timestamp = datetime.now()
+                            
+                            # Evaluate the rule and track result
+                            rule_result = rule.when(*resolved_facts)
+                            
+                            # Determine which action to use
+                            action = None
+                            if rule_result:
+                                action = rule.then
+                            elif rule.inverse:
+                                action = rule.inverse
+                            
+                            # Execute action and capture consequences
+                            consequences = []
+                            warnings = []
+                            if action:
+                                # Execute the action to get the result and consequences
+                                result = action(*self._resolve_facts(action))
+                                consequences = self._extract_action_consequences_from_result(result)
+                                
+                                # Check for attribute conflicts and generate warnings
+                                warnings = self._check_for_rule_ordering_warnings(
+                                    consequences, iteration_attribute_changes, rule
+                                )
+                                
+                                # Update the attribute changes tracker
+                                self._update_attribute_changes_tracker(
+                                    consequences, iteration_attribute_changes, rule
+                                )
+                                
+                                # Update facts
+                                facts = self._update_facts(result)
+                                consequence.update(facts)
+                            
+                            # Create match data
+                            match_data = self._trace_rule_evaluation(
+                                rule, resolved_facts, rule_result, action, 
+                                rule_timestamp, time.time() - rule_start, consequences, warnings
+                            )
+                            iteration_matches.append(match_data)
+                        else:
+                            # Original evaluation logic
+                            action = None
+                            # Evaluate the rule's 'when' and determine which action to invoke
+                            if rule.when(*resolved_facts):
+                                action = rule.then
+                            elif rule.inverse:
+                                action = rule.inverse
 
-                        if action:
+                        if action and not trace:  # Only execute if not already done in tracing
                             # Update the facts and track consequences to fire subsequent rules
                             result = action(*self._resolve_facts(action))
                             facts = self._update_facts(result)
                             consequence.update(facts)
+
+            # Record iteration if tracing and there were matches
+            if trace and iteration_matches:
+                from vulcan_core.reporting import ReportIteration
+                iteration_elapsed = time.time() - iteration_start
+                report_iteration = ReportIteration(
+                    id=iteration + 1,
+                    timestamp=iteration_timestamp,
+                    elapsed=iteration_elapsed,
+                    matches=iteration_matches
+                )
+                self._evaluation_report.iterations.append(report_iteration)
 
             # If rules updated some facts, prepare for the next iteration
             if consequence:
@@ -253,3 +336,413 @@ class RuleEngine:
                 fired_rules.clear()
             else:
                 break
+
+    def yaml_report(self) -> str:
+        """
+        Returns the YAML report of the last evaluation (if tracing was enabled).
+        
+        Returns:
+            str: YAML-formatted report
+            
+        Raises:
+            RuntimeError: If no report is available (tracing not enabled)
+        """
+        if not self._evaluation_report:
+            msg = "No evaluation report available. Use evaluate(trace=True) to enable tracing."
+            raise RuntimeError(msg)
+        
+        return self._evaluation_report.to_yaml()
+    
+    def _trace_rule_evaluation(self, rule: Rule, resolved_facts: list[Fact], 
+                               rule_result: bool, action, rule_timestamp: datetime, 
+                               elapsed: float, consequences: list, warnings: list = None) -> object:
+        """
+        Trace the evaluation of a rule for reporting purposes.
+        
+        Args:
+            rule: The rule being evaluated
+            resolved_facts: The resolved facts for the rule
+            rule_result: The boolean result of the rule evaluation
+            action: The action that will be executed (if any)
+            rule_timestamp: When the rule evaluation started
+            elapsed: How long the rule evaluation took
+            consequences: Already computed consequences from action execution
+            warnings: Any warnings generated during rule execution
+            
+        Returns:
+            RuleMatch object with evaluation details
+        """
+        from vulcan_core.reporting import RuleMatch
+        
+        rule_name = rule.name or "None"
+        rule_id = str(rule.id)[:8]  # Use first 8 chars of UUID for readability
+        
+        # Create evaluation string representation
+        evaluation_str = self._format_evaluation_string(rule.when, resolved_facts, rule_result)
+        
+        # Extract rationale for AI conditions
+        rationale = self._extract_ai_rationale(rule.when)
+        
+        # Extract context for long strings (>25 chars or multiline)
+        context = self._extract_context_from_evaluation_and_consequences(
+            rule.when, resolved_facts, consequences
+        )
+        
+        return RuleMatch(
+            rule=f"{rule_id}:{rule_name}",
+            timestamp=rule_timestamp,
+            elapsed=elapsed,
+            evaluation=evaluation_str,
+            consequences=consequences,
+            warnings=warnings or [],
+            context=context,
+            rationale=rationale,
+        )
+    
+    def _format_evaluation_string(self, condition, resolved_facts: list[Fact], result: bool) -> str:
+        """
+        Format the evaluation string showing the condition with fact values.
+        """
+        from vulcan_core.conditions import Condition, CompoundCondition, AICondition
+        
+        # Create a mapping of fact class names to actual instances for value lookup
+        fact_map = {fact.__class__.__name__: fact for fact in resolved_facts}
+        
+        # Format based on condition type
+        if isinstance(condition, AICondition):
+            return self._format_ai_condition(condition, fact_map, result)
+        elif isinstance(condition, CompoundCondition):
+            return self._format_compound_condition(condition, fact_map, result)
+        elif isinstance(condition, Condition):
+            return self._format_simple_condition(condition, fact_map, result)
+        else:
+            # Fallback for unknown condition types
+            return f"{result} = unknown_condition_type"
+    
+    def _format_simple_condition(self, condition, fact_map: dict, result: bool) -> str:
+        """Format a simple lambda-based condition."""
+        # Try to parse the condition function to understand the expression
+        import inspect
+        
+        try:
+            # Get the source code of the lambda function
+            source = inspect.getsource(condition.func)
+            # Extract the lambda expression (simplified parsing)
+            if "lambda:" in source:
+                expr_part = source.split("lambda:")[1].strip()
+                # Remove any trailing punctuation
+                expr_part = expr_part.rstrip(")\n,")
+                
+                # Replace fact references with values
+                formatted_expr = expr_part
+                for fact_ref in condition.facts:
+                    class_name, attr_name = fact_ref.split(".", 1)
+                    if class_name in fact_map:
+                        fact_instance = fact_map[class_name]
+                        actual_value = getattr(fact_instance, attr_name)
+                        
+                        # Check if the value should be extracted to context
+                        if self._should_extract_to_context(actual_value):
+                            # For long strings, just show the reference
+                            replacement = f"{class_name}.{attr_name}"
+                        else:
+                            # For short strings, show the value inline
+                            replacement = f"{class_name}.{attr_name}|{actual_value}|"
+                        
+                        formatted_expr = formatted_expr.replace(
+                            f"{class_name}.{attr_name}", replacement
+                        )
+                
+                # Handle conditions with no fact references
+                if not condition.facts and formatted_expr.strip():
+                    formatted_expr = "condition()"
+                
+                # Apply inversion if needed
+                if condition.inverted:
+                    formatted_expr = f"not({formatted_expr})"
+                
+                return f"{result} = {formatted_expr}"
+                
+        except Exception:
+            # Fallback to basic formatting if source parsing fails
+            pass
+        
+        # Fallback: basic format with fact values
+        fact_parts = []
+        for fact_ref in condition.facts:
+            class_name, attr_name = fact_ref.split(".", 1)
+            if class_name in fact_map:
+                fact_instance = fact_map[class_name]
+                actual_value = getattr(fact_instance, attr_name)
+                
+                # Check if the value should be extracted to context
+                if self._should_extract_to_context(actual_value):
+                    # For long strings, just show the reference
+                    fact_parts.append(f"{fact_ref}")
+                else:
+                    # For short strings, show the value inline
+                    fact_parts.append(f"{fact_ref}|{actual_value}|")
+            else:
+                fact_parts.append(f"{fact_ref}|?|")
+        
+        # Simple joining for multiple facts
+        if not fact_parts:
+            # Handle conditions with no fact references
+            evaluation_expr = "condition()"
+        elif len(fact_parts) == 1:
+            evaluation_expr = fact_parts[0]
+        else:
+            evaluation_expr = " and ".join(fact_parts)
+            
+        if condition.inverted:
+            evaluation_expr = f"not({evaluation_expr})"
+        
+        return f"{result} = {evaluation_expr}"
+    
+    def _format_compound_condition(self, condition, fact_map: dict, result: bool) -> str:
+        """Format a compound condition with operators."""
+        from vulcan_core.conditions import Operator
+        
+        operator_map = {
+            Operator.AND: "and",
+            Operator.OR: "or", 
+            Operator.XOR: "xor"
+        }
+        
+        operator_str = operator_map.get(condition.operator, "unknown_op")
+        
+        # Recursively format left and right parts
+        left_result = condition.left(*self._resolve_facts(condition.left))
+        right_result = condition.right(*self._resolve_facts(condition.right))
+        
+        left_str = self._format_evaluation_string(condition.left, self._resolve_facts(condition.left), left_result)
+        right_str = self._format_evaluation_string(condition.right, self._resolve_facts(condition.right), right_result)
+        
+        # Extract just the expression part (after the "= ")
+        left_expr = left_str.split(" = ", 1)[1] if " = " in left_str else left_str
+        right_expr = right_str.split(" = ", 1)[1] if " = " in right_str else right_str
+        
+        compound_expr = f"{left_expr} {operator_str} {right_expr}"
+        
+        if condition.inverted:
+            compound_expr = f"not({compound_expr})"
+        
+        return f"{result} = {compound_expr}"
+    
+    def _format_ai_condition(self, condition, fact_map: dict, result: bool) -> str:
+        """Format an AI condition with its template."""
+        # For AI conditions, show the template with fact values substituted
+        template = condition.inquiry_template
+        
+        # Simple substitution for now - replace fact references with values
+        formatted_template = template
+        for fact_ref in condition.facts:
+            class_name, attr_name = fact_ref.split(".", 1)
+            if class_name in fact_map:
+                fact_instance = fact_map[class_name]
+                actual_value = getattr(fact_instance, attr_name)
+                
+                # Check if the value should be extracted to context
+                placeholder = f"{{{class_name}.{attr_name}}}"
+                if self._should_extract_to_context(actual_value):
+                    # For long strings, just show the reference
+                    replacement = f"{{{class_name}.{attr_name}}}"
+                else:
+                    # For short strings, show the value inline
+                    replacement = f"{{{class_name}.{attr_name}|{actual_value}|}}"
+                
+                formatted_template = formatted_template.replace(placeholder, replacement)
+        
+        # Handle negation if condition is inverted
+        if condition.inverted:
+            return f"{result} = not({formatted_template})"
+        else:
+            return f"{result} = {formatted_template}"
+    
+    def _extract_action_consequences_from_result(self, result) -> list:
+        """
+        Extract consequences from an already-executed action result.
+        """
+        from vulcan_core.reporting import RuleMatchConsequence
+        
+        consequences = []
+        
+        # Handle different result types
+        if isinstance(result, tuple):
+            # Multiple facts/partials returned
+            for item in result:
+                consequences.extend(self._extract_fact_consequences(item))
+        else:
+            # Single fact/partial returned
+            consequences.extend(self._extract_fact_consequences(result))
+                
+        return consequences
+    
+    def _extract_fact_consequences(self, fact_or_partial) -> list:
+        """Extract consequences from a single fact or partial."""
+        from vulcan_core.reporting import RuleMatchConsequence
+        
+        consequences = []
+        
+        if isinstance(fact_or_partial, partial):
+            # It's a partial fact update
+            fact_class = fact_or_partial.func
+            fact_name = fact_class.__name__
+            
+            # Get the keyword arguments (the attributes being set)
+            keywords = fact_or_partial.keywords
+            for attr_name, value in keywords.items():
+                # Resolve fact references if the value is a reference
+                resolved_value = self._resolve_fact_reference(value)
+                consequences.append(RuleMatchConsequence(fact_name, attr_name, resolved_value))
+                
+        else:
+            # It's a full fact instance
+            fact_name = fact_or_partial.__class__.__name__
+            
+            # For full facts, we need to show all non-default attributes
+            # This is simplified - we'll capture all attributes for now
+            fact_dict = {}
+            for attr_name in fact_or_partial.__annotations__:
+                if not attr_name.startswith("_"):  # Skip private attributes
+                    value = getattr(fact_or_partial, attr_name)
+                    fact_dict[attr_name] = value
+            
+            consequences.append(RuleMatchConsequence(fact_name, None, fact_dict))
+        
+        return consequences
+    
+    def _resolve_fact_reference(self, value):
+        """Resolve a fact reference (like {AnotherFact.value}) to its actual value."""
+        if isinstance(value, str) and value.startswith('{') and value.endswith('}'):
+            # This is a template string like "{FactName.attribute}"
+            template_content = value[1:-1]  # Remove curly braces
+            
+            if '.' in template_content:
+                parts = template_content.split('.', 1)
+                if len(parts) == 2:
+                    fact_name, attr_name = parts
+                    if fact_name in self._facts:
+                        fact_instance = self._facts[fact_name]
+                        return getattr(fact_instance, attr_name)
+        
+        return value
+    
+    def _check_for_rule_ordering_warnings(self, consequences: list, 
+                                         attribute_changes: dict, current_rule: Rule) -> list[str]:
+        """
+        Check for rule ordering warnings when consequences override previous attributes,
+        and fact replacement warnings when complete facts are used.
+        """
+        warnings = []
+        
+        current_rule_id = str(current_rule.id)[:8]
+        current_rule_name = current_rule.name or "None"
+        
+        for consequence in consequences:
+            if consequence.attribute_name:
+                # This is a partial attribute update
+                fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
+                
+                if fact_attr in attribute_changes:
+                    # This attribute was already set by another rule in this iteration
+                    prev_rule_id, prev_rule_name, prev_value = attribute_changes[fact_attr]
+                    
+                    warning_msg = (
+                        f"Rule Ordering | Rule:{prev_rule_id} consequence "
+                        f"({consequence.fact_name}.{consequence.attribute_name}|{prev_value}|) "
+                        f"was overridden by Rule:{current_rule_id} "
+                        f"({consequence.fact_name}.{consequence.attribute_name}|{consequence.value}|) "
+                        f"within the same iteration"
+                    )
+                    warnings.append(warning_msg)
+            else:
+                # This is a complete fact replacement
+                warning_msg = (
+                    f"Fact Replacement | Rule:{current_rule_id} consequence replaces "
+                    f"({consequence.fact_name}), potentially altering unintended attributes. "
+                    f"Consider using a partial update to ensure only intended changes."
+                )
+                warnings.append(warning_msg)
+        
+        return warnings
+    
+    def _update_attribute_changes_tracker(self, consequences: list, 
+                                        attribute_changes: dict, current_rule: Rule):
+        """
+        Update the attribute changes tracker with new consequences.
+        """
+        rule_id = str(current_rule.id)[:8]
+        rule_name = current_rule.name or "None"
+        
+        for consequence in consequences:
+            if consequence.attribute_name:
+                # This is a partial attribute update
+                fact_attr = f"{consequence.fact_name}.{consequence.attribute_name}"
+                attribute_changes[fact_attr] = (rule_id, rule_name, consequence.value)
+    
+    def _extract_context_from_evaluation_and_consequences(self, condition, resolved_facts: list[Fact], 
+                                                         consequences: list) -> list:
+        """
+        Extract context for long strings (>25 chars or multiline) from evaluation - input data only.
+        """
+        from vulcan_core.reporting import RuleMatchContext
+        from vulcan_core.conditions import AICondition
+        
+        context = []
+        
+        # Create a mapping of fact class names to actual instances for value lookup
+        fact_map = {fact.__class__.__name__: fact for fact in resolved_facts}
+        
+        # Check condition facts for long strings - only extract input data for conditions
+        for fact_ref in condition.facts:
+            class_name, attr_name = fact_ref.split(".", 1)
+            if class_name in fact_map:
+                fact_instance = fact_map[class_name]
+                actual_value = getattr(fact_instance, attr_name)
+                
+                if self._should_extract_to_context(actual_value):
+                    is_multiline = isinstance(actual_value, str) and '\n' in actual_value
+                    context.append(RuleMatchContext(fact_ref, actual_value, is_multiline))
+        
+        # For AI conditions, also check if the inquiry template or rationale contains long strings
+        if isinstance(condition, AICondition):
+            # We might need to handle AI condition specific context differently
+            # For now, we'll rely on the fact references above
+            pass
+        
+        return context
+        
+        return context
+    
+    def _should_extract_to_context(self, value) -> bool:
+        """
+        Determine if a value should be extracted to context.
+        Returns True for strings longer than 25 characters or multiline strings.
+        """
+        if isinstance(value, str):
+            return len(value) > 25 or '\n' in value
+        return False
+    
+    def _extract_ai_rationale(self, condition) -> str | None:
+        """
+        Extract rationale from AI conditions after evaluation.
+        """
+        from vulcan_core.conditions import AICondition, CompoundCondition
+        
+        if isinstance(condition, AICondition):
+            return condition.rationale
+        elif isinstance(condition, CompoundCondition):
+            # Check left and right sides for AI conditions
+            left_rationale = self._extract_ai_rationale(condition.left)
+            right_rationale = self._extract_ai_rationale(condition.right)
+            
+            # Combine rationales if both exist
+            if left_rationale and right_rationale:
+                return f"{left_rationale}; {right_rationale}"
+            elif left_rationale:
+                return left_rationale
+            elif right_rationale:
+                return right_rationale
+        
+        return None
