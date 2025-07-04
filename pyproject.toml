@@ -9,6 +9,7 @@ readme = "README.md"
 authors = []
 keywords = ["rules", "logic", "reasoning", "ai", "artificial intelligence", "RAG", "LLM"]
 requires-python = ">=3.12,<4.0"
+dependencies = ["pyyaml (>=6.0.2,<7.0.0)"]
 
 [project.urls]
 homepage = "https://latchfield.com/vulcan"
