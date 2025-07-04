@@ -336,6 +336,63 @@ def test_rule_engine_warnings_detection():
     assert "Bar.baz" in warning
 
 
+class MyTestFact(Fact):
+    short_value: str = "short"
+    long_value: str = "This is a very long string that exceeds twenty-five characters"
+    multiline_value: str = "Line 1\nLine 2\nLine 3"
+
+
+class ResultTestFact(Fact):
+    status: str = ""
+
+
+def test_rule_engine_context_handling():
+    """Test that long strings and multiline content are extracted to context."""
+    
+    engine = RuleEngine()
+    engine.fact(MyTestFact(
+        short_value="short",
+        long_value="This is a very long string that exceeds twenty-five characters",
+        multiline_value="Line 1\nLine 2\nLine 3"
+    ))
+    engine.fact(ResultTestFact())
+    
+    # Rule that uses long/multiline values
+    engine.rule(
+        name="Test Context Rule",
+        when=condition(lambda: MyTestFact.long_value and MyTestFact.multiline_value),
+        then=action(partial(ResultTestFact, status="This is another very long string that should go to context")),
+    )
+    
+    engine.evaluate(trace=True)
+    
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    # Check that context was extracted
+    iterations = parsed["report"]["iterations"]
+    assert len(iterations) >= 1
+    
+    iteration = iterations[0]
+    matches = iteration["matches"]
+    assert len(matches) >= 1
+    
+    match = matches[0]
+    
+    # Should have context due to long strings
+    assert "context" in match
+    assert len(match["context"]) > 0
+    
+    # Verify context contains the long values
+    context_dict = {}
+    for ctx_item in match["context"]:
+        context_dict.update(ctx_item)
+    
+    # Should contain references to long values used in condition or consequences
+    long_value_found = any("This is a very long string" in str(v) for v in context_dict.values())
+    assert long_value_found
+
+
 def test_rule_engine_example_scenario():
     """Test scenario similar to the example_rules.py to demonstrate functionality."""
     engine = RuleEngine()
