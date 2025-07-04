@@ -243,3 +243,47 @@ def test_rule_engine_tracing_multiple_iterations():
     # Should have multiple iterations
     iterations = parsed["report"]["iterations"]
     assert len(iterations) >= 2
+
+
+def test_rule_engine_detailed_evaluation_format():
+    """Test that evaluation strings and consequences are properly formatted."""
+    engine = RuleEngine()
+    engine.fact(Foo(bar=True, biz=False))
+    engine.fact(Bar(baz=0))
+    
+    engine.rule(
+        name="test_condition_formatting",
+        when=condition(lambda: Foo.bar and not Foo.biz),
+        then=action(partial(Bar, baz=23)),
+    )
+    
+    engine.evaluate(trace=True)
+    
+    yaml_output = engine.yaml_report()
+    parsed = yaml.safe_load(yaml_output)
+    
+    # Verify structure exists
+    assert "report" in parsed
+    assert "iterations" in parsed["report"]
+    assert len(parsed["report"]["iterations"]) >= 1
+    
+    iteration = parsed["report"]["iterations"][0]
+    assert "matches" in iteration
+    assert len(iteration["matches"]) >= 1
+    
+    match = iteration["matches"][0]
+    
+    # Verify rule information
+    assert "rule" in match
+    assert "test_condition_formatting" in match["rule"]
+    
+    # Verify evaluation string contains fact values
+    assert "evaluation" in match
+    evaluation = match["evaluation"]
+    assert "True" in evaluation or "False" in evaluation
+    
+    # Verify consequences are captured
+    assert "consequences" in match
+    if match["consequences"]:  # Only check if there are consequences
+        assert "Bar.baz" in match["consequences"]
+        assert match["consequences"]["Bar.baz"] == 23
