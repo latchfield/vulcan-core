@@ -114,17 +114,17 @@ class CompoundCondition(Expression):
         # Extract required class types from expression facts
         required_types = set()
         for fact in expr.facts:
-            class_name = fact.split('.')[0]  # Extract class name from "ClassName.attribute"
+            class_name = fact.split(".")[0]  # Extract class name from "ClassName.attribute"
             required_types.add(class_name)
-        
+
         # Find matching instances from args by class type
         result = []
-        for class_name in sorted(required_types):  # Sort for consistent ordering
+        for class_name in required_types:
             for arg in args:
                 if arg.__class__.__name__ == class_name:
                     result.append(arg)
                     break
-        
+
         return result
 
     def __call__(self, *args: Fact) -> bool:
