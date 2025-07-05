@@ -763,11 +763,76 @@ def test_custom_condition_formatting():
     # Check that custom conditions show function names and return values
     assert "not(my_cond()|True|)" in evaluation
     assert "another_cond()|False|" in evaluation
-    assert "not(MySummaryFact.value|True|)" in evaluation
+    assert "(not (MySummaryFact.value|True|))" in evaluation
     
     # Check the complete evaluation format
-    expected_evaluation = "False = not(my_cond()|True|) and another_cond()|False| or not(MySummaryFact.value|True|)"
+    expected_evaluation = "False = not(my_cond()|True|) and another_cond()|False| or (not (MySummaryFact.value|True|))"
     assert evaluation == expected_evaluation
+
+
+def test_lambda_not_operator_preservation():
+    """Test that the 'not' operator is preserved in lambda condition evaluation strings."""
+    
+    engine = RuleEngine()
+    engine.fact(Foo(bar=True, biz=False))
+    
+    # Test lambda with 'not' operator
+    engine.rule(
+        when=condition(lambda: Foo.bar and not Foo.biz),
+        then=action(partial(Bar, baz=1))
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    report_data = yaml.safe_load(yaml_output)
+    
+    # Check the evaluation string preserves the 'not' operator and wraps lambda in parentheses
+    matches = report_data["report"]["iterations"][0]["matches"]
+    assert len(matches) == 1
+    
+    evaluation = matches[0]["evaluation"]
+    assert evaluation == "True = (Foo.bar|True| and not Foo.biz|False|)"
+
+
+def test_compound_condition_with_lambda_parentheses():
+    """Test that lambda conditions in compound expressions are wrapped in parentheses."""
+    
+    @condition
+    def simple_true() -> bool:
+        return True
+    
+    @condition
+    def simple_false() -> bool:
+        return False
+    
+    engine = RuleEngine()
+    engine.fact(MySummaryFact(value=True))
+    
+    # Create lambda condition separately to avoid multi-lambda issues
+    lambda_cond = condition(lambda: not MySummaryFact.value)
+    
+    # Test compound condition with both custom conditions and lambda
+    engine.rule(
+        when=~simple_true & simple_false | lambda_cond,
+        then=action(partial(Bar, baz=1))
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    report_data = yaml.safe_load(yaml_output)
+    
+    # Check the evaluation string
+    matches = report_data["report"]["iterations"][0]["matches"]
+    assert len(matches) == 1
+    
+    evaluation = matches[0]["evaluation"]
+    # Lambda conditions should be wrapped in parentheses, custom conditions should not
+    assert "not(simple_true()|True|)" in evaluation
+    assert "simple_false()|False|" in evaluation
+    assert "(not MySummaryFact.value|True|)" in evaluation
+    
+    expected = "False = not(simple_true()|True|) and simple_false()|False| or (not MySummaryFact.value|True|)"
+    assert evaluation == expected
 
 
 def test_simple_custom_condition_formatting():

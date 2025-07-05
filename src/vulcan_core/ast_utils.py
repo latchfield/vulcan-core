@@ -500,4 +500,9 @@ class ASTProcessor[T: Callable]:
         # TODO: Find a way to avoid using exec or eval here
         lambda_code = f"lambda {', '.join(class_to_param.values())}: {lambda_body}"
         new_func = eval(lambda_code, caller_globals)  # noqa: S307 # nosec B307
+        
+        # Copy the __source__ attribute from the original function to the new function
+        if hasattr(self.func, '__source__'):
+            new_func.__source__ = self.func.__source__
+        
         return new_func

@@ -478,6 +478,9 @@ class RuleEngine:
                 if not condition.facts and formatted_expr.strip():
                     formatted_expr = "condition()"
                 
+                # Wrap lambda expressions in parentheses to distinguish from custom conditions
+                formatted_expr = f"({formatted_expr})"
+                
                 # Apply inversion if needed
                 if condition.inverted:
                     formatted_expr = f"not({formatted_expr})"
