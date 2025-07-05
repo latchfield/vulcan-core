@@ -1,0 +1,75 @@
+# IMPORTANT: Comments are provided only to clarify and describe the schema. Report generation must not include YAML comments.
+# All YAML keys are expected unless otherwise specified.
+# For reading clarity, avoid using string quotations where not in conflict with YAML syntax.
+report: # Root key for the report
+  iterations: # Vulcan only evaluates rules where the condition references Fact instances present in memory. If a Fact is not present, the rule is not evaluated. As rules can change the working memory, Vulcan loops through evaluation of the entire ruleset until no further changes/matches exist, or a maximum iteration count is reached. This report is organized by each iteration containing details of the matching rule evaluations, in the order that they were evaluated.
+    - id: 1 # Iteration count, starting from 1
+      timestamp: 2025-07-01T23:35:13.000Z # Timestamp at the start of the iteration (ISO8601 with millisecond precision)
+      elapsed: 0.030 # Combined elapsed processing time for all events in this iteration (in seconds, with millisecond precision)
+      matches: # List of rules that matched during this iteration
+      - rule: 1:Update biz if either bar or biz are True  # Format is `Rule.id:Rule.name`
+        timestamp: 2025-07-01T23:35:13.010Z # Timestamp at the start of rule evaluation
+        elapsed: 0.010 # Elapsed processing time for this rule evaluation (in seconds, with millisecond precision)
+        evaluation: True = Foo.bar|True| or Foo.biz|False| # Representation of: `when=condition(lambda: Foo.bar or Foo.biz)`
+        consequences: # Representation of: `then=action(partial(Bar, baz=AnotherFact.value))` - exact values must be reported, not just the variable names.
+          Bar.baz: 23
+      - rule: 2:Update Bar if both bar and biz are True
+        timestamp: 2025-07-01T23:35:13.020Z
+        elapsed: 0.010
+        evaluation: False = Foo.bar|True| and Foo.biz|False| # Representation of: `when=condition(lambda: Foo.bar and Foo.biz)`
+        consequences: # Representation of: `inverse=action(partial(Bar, baz=24, biff=YetAnotherFact.value))` (if inverse action was declared)
+          Bar.baz: 24
+          Bar.biff: foo # Example without newlines, but if present in the value use YAML `|` syntax for multiline strings
+        warnings: # The warnings key is optional and can be omitted if there are no warnings
+          - Rule Ordering | Rule:1 consequence (Bar.baz|23|) was overridden by Rule:2 (Bar.baz|24|) within the same iteration (1) # This warning must be present if the consequence of a rule overrides an attribute set by a previous rule in the same iteration - as is the case in this example. The format is `<category> | <warning>`, where here the warning is a `Rule Ordering` warning with the specific details shown here. Requirements regarding maximum string length and Similarity types apply (see below for specifics and how to handle them).
+      - rule: 3:None # Users may opt to not provide a rule name, in which case the rule will be represented as `Rule.id:None` in the report.
+        timestamp: 2025-07-01T23:35:13.030Z
+        elapsed: 0.010
+        evaluation: False = Foo.biz|False|
+        consequences: None # Required. Use 'None' for rules that did not meet the condition criteria and had no inverse action.
+    - id: 2
+      timestamp: 2025-07-01T23:35:13.040Z
+      elapsed: 1.000
+      matches:
+      - rule: 4:Ask an LLM about chromosomes
+        timestamp: 2025-07-01T23:35:13.050Z
+        elapsed: 1.000
+        evaluation: False = not("Do humans have {Bar.baz|24|} pairs of chromosomes?") # For LLM conditions, display the original prompt with simple values (int, float, bool, etc.) appended between pipe characters. For strings longer than 25 characters, such values will not be inline and instead provided in a separate key - see a later example. Note in this example, the original rule used a condition invert operator `~` to negate the condition, which is represented here as `not(...)`. If any compound or condition operations are used, LLM prompts should be represented in quotes in the report, otherwise omit quotes as usual for clarity (e.g. `False = Do humans have {Bar.baz|24|} pairs of chromosomes?`)
+        consequences:
+          MyLLMFact.chromosomes: This is a long string for use in examples.
+        rationale: Humans have 23 pairs of chromosomes, totaling 46 chromosomes. # Required for LLM conditions (from AICondition._rationale). Omit for non-LLM conditions.
+    - id: 3
+      timestamp: 2025-07-01T23:35:14.060Z
+      elapsed: 1.000
+      matches:
+      - rule: 5:Check if the LLM response is about an example
+        timestamp: 2025-07-01T23:35:14.070Z
+        elapsed: 1.000
+        evaluation: True = Does the content of {MyLLMFact.chromosomes} or {MyLLMSimilarity.lookup_attribute} mention that it is an example?
+        consequences:
+          MySummaryFact.value: True
+        context:  # Required if any string value in the condition or consequence exceeds 25 characters or is multiline (applies to both LLM and non-LLM conditions)
+          - MyLLMFact.chromosomes: This is a long string for use in examples. # Strings without newlines use inline YAML syntax 
+          - MyLLMSimilarity.lookup_attribute: | # Multiline strings use the YAML pipe character
+              This is another long string for use in examples, except this one is a multiline string
+              and was the return of a similarity search, resulting from the use of a referenced Similarity type on a Fact.
+        rationale: The content mentions `for use in examples` which clearly indicates that it is an example.
+    - id: 4
+      timestamp: 2025-07-01T23:35:15.080Z
+      elapsed: 0.020
+      matches:
+      - rule: 6:None
+        timestamp: 2025-07-01T23:35:15.090Z
+        elapsed: 0.010
+        evaluation: False = not(my_cond()|True|) and another_cond()|False| or not(MySummaryFact.value|True|) # Representation of compound conditions: `when=~my_cond & another_cond | condition(lambda: not (MySummaryFact.value))`
+        consequences: None     
+      - rule: 7:None
+        timestamp: 2025-07-01T23:35:15.100Z
+        elapsed: 0.010
+        evaluation: True = MySummaryFact.value|True| # Representation of: `when=condition(lambda: MySummaryFact.value)`
+        consequences: # Consequences can insert an entire fact, not just non-partial attributes. E.g. as `MyNonPartialFact(value=42)`. Such Facts may include several default attributes; all changed values must be shown in the report even if they were not explicity set in the action.
+          MyNonPartialFact:
+            value: 42
+            another_attribute: 100 # Example of a default attribute that is not set by the rule, but is a different value than the existing fact in the working memory
+        warnings:
+          - Fact Replacement | Rule:6 consequence replaces (MyNonPartialFact), potentially altering unintended attributes. Consider using a partial update to ensure only intended changes. # This warning must be present if a rule consequence assignes to a fully-constructed object rather than using `partial`.
