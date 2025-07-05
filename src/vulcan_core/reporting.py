@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import yaml
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass
@@ -76,9 +78,7 @@ class RuleMatch:
             result["warnings"] = self.warnings
             
         if self.context:
-            context_list = []
-            for ctx in self.context:
-                context_list.append(ctx.to_dict())
+            context_list = [ctx.to_dict() for ctx in self.context]
             result["context"] = context_list
             
         if self.rationale:

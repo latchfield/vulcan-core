@@ -413,7 +413,6 @@ def test_rule_engine_context_handling():
 def test_rule_engine_ai_rationale_extraction():
     """Test that AI condition rationale extraction works."""
     from vulcan_core.conditions import AICondition
-    from unittest.mock import Mock
     
     # Test the rationale extraction method directly
     engine = RuleEngine()
@@ -619,7 +618,7 @@ def test_long_string_context_extraction():
     
     # Long strings should appear in context
     assert "context" in match
-    context_values = [list(ctx.values())[0] for ctx in match["context"]]
+    context_values = [next(iter(ctx.values())) for ctx in match["context"]]
     assert any("This is a very long string" in str(val) for val in context_values)
 
 
@@ -727,3 +726,91 @@ def test_fact_replacement_warnings():
     assert "MyNonPartialFact" in consequences
     assert consequences["MyNonPartialFact"]["value"] == 42
     assert consequences["MyNonPartialFact"]["another_attribute"] == 100
+
+
+def test_custom_condition_formatting():
+    """Test that custom conditions (created with @condition decorator) are properly formatted with names and return values."""
+    
+    @condition
+    def my_cond() -> bool:
+        return True
+
+    @condition
+    def another_cond() -> bool:
+        return False
+    
+    engine = RuleEngine()
+    engine.fact(MySummaryFact(value=True))
+    
+    # Test compound condition with custom conditions and lambda
+    engine.rule(
+        name="Custom condition test",
+        when=~my_cond & another_cond | condition(lambda: not (MySummaryFact.value)),
+        then=action(partial(MySummaryFact, value=False)),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    report_data = yaml.safe_load(yaml_output)
+    
+    # Find the rule match
+    matches = report_data["report"]["iterations"][0]["matches"]
+    assert len(matches) == 1
+    
+    match = matches[0]
+    evaluation = match["evaluation"]
+    
+    # Check that custom conditions show function names and return values
+    assert "not(my_cond()|True|)" in evaluation
+    assert "another_cond()|False|" in evaluation
+    assert "not(MySummaryFact.value|True|)" in evaluation
+    
+    # Check the complete evaluation format
+    expected_evaluation = "False = not(my_cond()|True|) and another_cond()|False| or not(MySummaryFact.value|True|)"
+    assert evaluation == expected_evaluation
+
+
+def test_simple_custom_condition_formatting():
+    """Test formatting of simple custom conditions (not compound)."""
+    
+    @condition
+    def simple_true_cond() -> bool:
+        return True
+
+    @condition  
+    def simple_false_cond() -> bool:
+        return False
+    
+    engine = RuleEngine()
+    engine.fact(MySummaryFact(value=True))
+    
+    # Test simple custom condition combined with a fact-based condition (don't modify facts)
+    engine.rule(
+        name="Simple true condition",
+        when=simple_true_cond & condition(lambda: MySummaryFact.value),
+        then=action(partial(ResultTestFact, status="fired")),
+    )
+    
+    # Test inverted custom condition  
+    engine.rule(
+        name="Inverted false condition", 
+        when=~simple_false_cond & condition(lambda: MySummaryFact.value),
+        then=action(partial(ResultTestFact, status="also_fired")),
+    )
+    
+    engine.evaluate(trace=True)
+    yaml_output = engine.yaml_report()
+    report_data = yaml.safe_load(yaml_output)
+    
+    matches = report_data["report"]["iterations"][0]["matches"]
+    assert len(matches) == 2
+    
+    # Check first match (simple custom condition)
+    first_match = matches[0]
+    assert "simple_true_cond()|True|" in first_match["evaluation"]
+    assert "MySummaryFact.value|True|" in first_match["evaluation"]
+    
+    # Check second match (inverted custom condition)
+    second_match = matches[1]
+    assert "not(simple_false_cond()|False|)" in second_match["evaluation"]
+    assert "MySummaryFact.value|True|" in second_match["evaluation"]

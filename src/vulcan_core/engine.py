@@ -318,7 +318,7 @@ class RuleEngine:
                             consequence.update(facts)
 
             # Record iteration if tracing and there were matches
-            if trace and iteration_matches:
+            if trace and iteration_matches and self._evaluation_report is not None:
                 from vulcan_core.reporting import ReportIteration
                 iteration_elapsed = time.time() - iteration_start
                 report_iteration = ReportIteration(
@@ -355,7 +355,7 @@ class RuleEngine:
     
     def _trace_rule_evaluation(self, rule: Rule, resolved_facts: list[Fact], 
                                rule_result: bool, action, rule_timestamp: datetime, 
-                               elapsed: float, consequences: list, warnings: list = None) -> object:
+                               elapsed: float, consequences: list, warnings: list | None = None) -> object:
         """
         Trace the evaluation of a rule for reporting purposes.
         
@@ -424,14 +424,35 @@ class RuleEngine:
         # Try to parse the condition function to understand the expression
         import inspect
         
+        # Check if this is a custom condition (function-based) rather than a lambda
+        if hasattr(condition.func, '__name__') and condition.func.__name__ != '<lambda>':
+            # This is a custom condition function
+            function_name = condition.func.__name__
+            
+            # Get the raw result before inversion
+            raw_result = not result if condition.inverted else result
+            
+            evaluation_expr = f"{function_name}()|{raw_result}|"
+            
+            if condition.inverted:
+                evaluation_expr = f"not({evaluation_expr})"
+            
+            return f"{result} = {evaluation_expr}"
+        
         try:
             # Get the source code of the lambda function
-            source = inspect.getsource(condition.func)
+            # Try to get from the stored source first (for AST-processed lambdas)
+            source = None
+            if hasattr(condition.func, '__source__'):
+                source = condition.func.__source__
+            else:
+                source = inspect.getsource(condition.func)
+            
             # Extract the lambda expression (simplified parsing)
             if "lambda:" in source:
                 expr_part = source.split("lambda:")[1].strip()
-                # Remove any trailing punctuation
-                expr_part = expr_part.rstrip(")\n,")
+                # Remove any trailing punctuation, but be careful with parentheses
+                expr_part = expr_part.rstrip("\n,").rstrip()
                 
                 # Replace fact references with values
                 formatted_expr = expr_part
@@ -465,7 +486,7 @@ class RuleEngine:
                 
         except Exception:
             # Fallback to basic formatting if source parsing fails
-            pass
+            logger.debug("Failed to parse lambda source for condition formatting")
         
         # Fallback: basic format with fact values
         fact_parts = []
@@ -493,7 +514,24 @@ class RuleEngine:
             evaluation_expr = fact_parts[0]
         else:
             evaluation_expr = " and ".join(fact_parts)
-            
+        
+        # For lambda conditions that we couldn't parse, we need to reconstruct based on the result
+        # If the condition result doesn't match the simple evaluation, it might be a more complex lambda
+        if condition.facts and len(condition.facts) == 1:
+            # Single fact reference - check if it's a simple comparison or negation
+            fact_ref = condition.facts[0]
+            class_name, attr_name = fact_ref.split(".", 1)
+            if class_name in fact_map:
+                fact_instance = fact_map[class_name]
+                actual_value = getattr(fact_instance, attr_name)
+                
+                # If the result is the opposite of the fact value, it's probably a negation
+                if isinstance(actual_value, bool) and result != actual_value:
+                    if self._should_extract_to_context(actual_value):
+                        evaluation_expr = f"not({fact_ref})"
+                    else:
+                        evaluation_expr = f"not({fact_ref}|{actual_value}|)"
+                        
         if condition.inverted:
             evaluation_expr = f"not({evaluation_expr})"
         
@@ -512,11 +550,17 @@ class RuleEngine:
         operator_str = operator_map.get(condition.operator, "unknown_op")
         
         # Recursively format left and right parts
-        left_result = condition.left(*self._resolve_facts(condition.left))
-        right_result = condition.right(*self._resolve_facts(condition.right))
+        # Get the resolved facts for each side
+        left_facts = self._resolve_facts(condition.left)
+        right_facts = self._resolve_facts(condition.right)
         
-        left_str = self._format_evaluation_string(condition.left, self._resolve_facts(condition.left), left_result)
-        right_str = self._format_evaluation_string(condition.right, self._resolve_facts(condition.right), right_result)
+        # Evaluate each side to get the actual boolean results
+        left_result = condition.left(*left_facts)
+        right_result = condition.right(*right_facts)
+        
+        # Format each side with their actual results
+        left_str = self._format_evaluation_string(condition.left, left_facts, left_result)
+        right_str = self._format_evaluation_string(condition.right, right_facts, right_result)
         
         # Extract just the expression part (after the "= ")
         left_expr = left_str.split(" = ", 1)[1] if " = " in left_str else left_str
@@ -563,7 +607,6 @@ class RuleEngine:
         """
         Extract consequences from an already-executed action result.
         """
-        from vulcan_core.reporting import RuleMatchConsequence
         
         consequences = []
         
@@ -637,7 +680,6 @@ class RuleEngine:
         warnings = []
         
         current_rule_id = str(current_rule.id)[:8]
-        current_rule_name = current_rule.name or "None"
         
         for consequence in consequences:
             if consequence.attribute_name:
