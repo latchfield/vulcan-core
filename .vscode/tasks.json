@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "inputs": [
     {
-      "id": "olamma-host",
+      "id": "ollama-host",
       "description": "Enter the hostname/IP of Ollama:",
       "type": "promptString"
     }
