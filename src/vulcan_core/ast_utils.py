@@ -454,7 +454,16 @@ class ASTProcessor[T: Callable]:
         """Validate function signature requirements."""
 
         # Validate return type
-        if "return" not in hints or hints["return"] is not self.return_type:
+        if "return" not in hints:
+            msg = f"Return type hint is required and must be {self.return_type!r}"
+            raise CallableSignatureError(msg)
+
+        actual_return_type = hints["return"]
+
+        # Allow 'bool' when expecting 'ConditionCallable' for backward compatibility
+        if str(self.return_type) == "ConditionCallable" and actual_return_type is bool:
+            pass  # This is acceptable
+        elif actual_return_type is not self.return_type:
             msg = f"Return type hint is required and must be {self.return_type!r}"
             raise CallableSignatureError(msg)
 
@@ -500,9 +509,9 @@ class ASTProcessor[T: Callable]:
         # TODO: Find a way to avoid using exec or eval here
         lambda_code = f"lambda {', '.join(class_to_param.values())}: {lambda_body}"
         new_func = eval(lambda_code, caller_globals)  # noqa: S307 # nosec B307
-        
+
         # Copy the __source__ attribute from the original function to the new function
-        if hasattr(self.func, '__source__'):
+        if hasattr(self.func, "__source__"):
             new_func.__source__ = self.func.__source__
-        
+
         return new_func

@@ -334,7 +334,7 @@ def test_ai_rule_retry(engine: RuleEngine):
             tool = tool_call(
                 id="call_1",
                 name="BooleanDecision",
-                args={"justification": "Something", "result": True, "invalid_inquiry": False},
+                args={"comments": "Something", "result": True, "processing_failed": False},
             )
 
             message = AIMessage(content="", tool_calls=[tool])

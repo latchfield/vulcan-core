@@ -1,24 +1,55 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
-    "version": "2.0.0",
-    "tasks": [
-      {
-        "label": "mkdocs serve",
-        "options": {
-          "cwd": "${workspaceFolder}/docs"
-        },
-        "detail": "Starts mkdocs live server.",
-        "type": "process",
-        "isBackground": true,
-        "command": "${workspaceFolder}/.venv/bin/python",   
-        "args": ["-m", "mkdocs", "serve"],     
-        "group": "test",        
-        "presentation": {
-          "reveal": "silent",
-          "panel": "shared",
-        },
-      }
-    ]
-  }
-  
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "ollama-host",
+      "description": "Enter the hostname/IP of Ollama:",
+      "type": "promptString"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "mkdocs serve",
+      "options": {
+        "cwd": "${workspaceFolder}/docs"
+      },
+      "detail": "Starts mkdocs live server.",
+      "type": "process",
+      "isBackground": true,
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m",
+        "mkdocs",
+        "serve"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+      },
+    },
+    {
+      "label": "ollama forwarding",
+      "options": {
+        "cwd": "${workspaceFolder}/docs"
+      },
+      "detail": "Launches socat to forward Ollama requests.",
+      "type": "process",
+      "isBackground": true,
+      "command": "socat",
+      "args": [
+        "-d",
+        "-d",
+        "TCP-LISTEN:11434,fork",
+        "TCP:${input:olamma-host}:11434"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+      },
+    }
+  ]
+}
