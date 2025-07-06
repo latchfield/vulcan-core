@@ -74,7 +74,7 @@ class Condition(FactHandler[ConditionCallable, bool], Expression):
         is_inverted (bool): Flag indicating whether the condition result should be inverted.
     """
 
-    def __call__(self, *args: Fact) -> bool:
+    def __call__(self, *args: Fact) -> bool | None:
         result = self.func(*args)
         return not result if self.inverted else result
 
