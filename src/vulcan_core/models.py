@@ -28,7 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover - not used at runtime
 
 type ActionReturn = tuple[partial[Fact] | Fact, ...] | partial[Fact] | Fact
 type ActionCallable = Callable[..., ActionReturn]
-type ConditionCallable = Callable[..., bool]
+type ConditionCallable = Callable[..., bool | None]
 
 
 # TODO: Consolidate with AttrDict, and/or figure out how to extende from Mapping
