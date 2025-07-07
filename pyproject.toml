@@ -82,7 +82,7 @@ branch = true # Could be an issue if true for native decoration: https://github.
 [tool.poetry.dependencies]
 pydantic = "~2.11.7"
 langchain = { version = "~0.3.25", optional = true } 
-langchain-openai = { version = "~0.3.18", optional = true }
+langchain-openai = { version = "~0.3.27", optional = true }
 
 [tool.poetry.extras]
 openai = ["langchain", "langchain-openai"]
