@@ -43,7 +43,7 @@
         "-d",
         "-d",
         "TCP-LISTEN:11434,fork",
-        "TCP:${input:olamma-host}:11434"
+        "TCP:${input:ollama-host}:11434"
       ],
       "group": "test",
       "presentation": {

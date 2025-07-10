@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from types import MappingProxyType
@@ -12,6 +13,7 @@ from uuid import UUID, uuid4
 
 from vulcan_core.ast_utils import NotAFactError
 from vulcan_core.models import DeclaresFacts, Fact
+from vulcan_core.reporting import Auditor
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from vulcan_core.actions import Action
@@ -66,20 +68,22 @@ class RuleEngine:
     Methods:
         rule(self, *, name: str | None = None, when: LogicEvaluator, then: BaseAction, inverse: BaseAction | None = None): Adds a rule to the rule engine.
         update_facts(self, fact: tuple[Fact | partial[Fact], ...] | partial[Fact] | Fact) -> Iterator[str]: Updates the facts in the working memory.
-        evaluate(self): Evaluates the rules based on the current facts in working memory.
+        evaluate(self, trace: bool = False): Evaluates the rules based on the current facts in working memory.
+        yaml_report(self): Returns the YAML report of the last evaluation (if tracing was enabled).
     """
 
     enabled: bool = False
     recusion_limit: int = 10
     _facts: dict[str, Fact] = field(default_factory=dict, init=False)
     _rules: dict[str, list[Rule]] = field(default_factory=dict, init=False)
+    _audit: Auditor = field(default_factory=Auditor, init=False)
 
     @cached_property
-    def facts(self) -> MappingProxyType[str, Fact]:
+    def facts(self) -> Mapping[str, Fact]:
         return MappingProxyType(self._facts)
 
     @cached_property
-    def rules(self) -> MappingProxyType[str, list[Rule]]:
+    def rules(self) -> Mapping[str, list[Rule]]:
         return MappingProxyType(self._rules)
 
     def __getitem__[T: Fact](self, key: type[T]) -> T:
@@ -188,13 +192,17 @@ class RuleEngine:
         keys = {key.split(".")[0]: key for key in declared.facts}.values()
         return [self._facts[key.split(".")[0]] for key in keys]
 
-    def evaluate(self, fact: Fact | partial[Fact] | None = None):
+    def evaluate(self, fact: Fact | partial[Fact] | None = None, *, audit: bool = False):
         """
         Cascading evaluation of rules based on the facts in working memory.
 
         If provided a fact, will update and evaluate immediately. Otherwise all rules will be evaluated.
+
+        Args:
+            fact: Optional fact to update and evaluate immediately
+            trace: Enables tracing for explanbility report generation
         """
-        fired_rules: set[UUID] = set()
+        evaluated_rules: set[UUID] = set()
         consequence: set[str] = set()
 
         # TODO: Create an internal consistency check to determine if all referenced Facts are present?
@@ -211,18 +219,26 @@ class RuleEngine:
             fact_list = self._facts.values()
             scope = {f"{fact.__class__.__name__}.{attr}" for fact in fact_list for attr in vars(fact)}
 
+        if audit:
+            self._audit.evaluation_reset()
+
         # Iterate over the rules until the recusion limit is reached or no new rules are fired
         for iteration in range(self.recusion_limit + 1):
             if iteration == self.recusion_limit:
                 msg = f"Recursion limit of {self.recusion_limit} reached"
                 raise RecursionLimitError(msg)
 
+            if audit:
+                self._audit.iteration_start()
+
+            # Evaluate matching rules
             for fact_str, rules in self._rules.items():
                 if fact_str in scope:
                     for rule in rules:
-                        # Skip if we already evaluated the rule this iteration
-                        if rule.id in fired_rules:
+                        # Skip the rule if it was already evaluted in this iteration (due to matching on another Fact)
+                        if rule.id in evaluated_rules:
                             continue
+                        evaluated_rules.add(rule.id)
 
                         # Skip if not all facts required by the rule are present
                         try:
@@ -231,25 +247,37 @@ class RuleEngine:
                             logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
                             continue
 
-                        action = None
-                        fired_rules.add(rule.id)
+                        if audit:
+                            self._audit.rule_start()
 
-                        # Evaluate the rule's 'when' and determine which action to invoke
-                        if rule.when(*resolved_facts):
+                        # Evaluate the rule and prepare the aciton
+                        action = None
+                        condition_result = rule.when(*resolved_facts)
+                        if condition_result:
                             action = rule.then
                         elif rule.inverse:
                             action = rule.inverse
 
+                        # Evaluate the action and update the consequences
+                        action_result = None
                         if action:
-                            # Update the facts and track consequences to fire subsequent rules
-                            result = action(*self._resolve_facts(action))
-                            facts = self._update_facts(result)
+                            action_result = action(*self._resolve_facts(action))
+                            facts = self._update_facts(action_result)
                             consequence.update(facts)
 
-            # If rules updated some facts, prepare for the next iteration
+                        if audit:
+                            self._audit.rule_end(rule, action_result, self.facts, condition_result=condition_result)
+
+            if audit:
+                self._audit.iteration_end()
+
+            # Check for next iteration
             if consequence:
                 scope = consequence
                 consequence = set()
-                fired_rules.clear()
+                evaluated_rules.clear()
             else:
                 break
+
+    def yaml_report(self) -> str:
+        return self._audit.generate_yaml_report()

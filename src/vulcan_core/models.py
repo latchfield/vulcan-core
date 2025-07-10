@@ -161,7 +161,7 @@ class FactHandler[T: Callable, R: Any](ABC):
     func: T
 
     @abstractmethod
-    def __call__(self, *args: Fact) -> R: ...
+    def _evaluate(self, *args: Fact) -> R: ...
 
 
 @runtime_checkable

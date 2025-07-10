@@ -17,6 +17,9 @@ class Action(FactHandler[ActionCallable, ActionReturn], DeclaresFacts):
     """
 
     def __call__(self, *args: Fact) -> ActionReturn:
+        return self._evaluate(*args)
+
+    def _evaluate(self, *args: Fact) -> ActionReturn:
         return self.func(*args)
 
 

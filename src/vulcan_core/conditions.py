@@ -37,6 +37,16 @@ class Expression(DeclaresFacts):
     """
 
     inverted: bool = field(kw_only=True, default=False)
+    _last_result: bool | None = field(default=None, init=False)
+    _evaluated: bool = field(default=False, init=False)
+
+    def last_result(self) -> bool | None:
+        """Returns the last evaluated result of the expression. Could return none if a Fact value is None."""
+        return self._last_result
+
+    def evaluated(self) -> bool:
+        """Returns True if the expression has been evaluated at least once."""
+        return self._evaluated
 
     def _compound(self, other: Expression, operator: Operator) -> Expression:
         # Be sure to preserve the order of facts while removing duplicates
@@ -52,8 +62,14 @@ class Expression(DeclaresFacts):
     def __xor__(self, other: Expression) -> Expression:
         return self._compound(other, Operator.XOR)
 
+    def __call__(self, *args: Fact) -> bool:
+        result = self._evaluate(*args)
+        object.__setattr__(self, "_evaluated", True)
+        object.__setattr__(self, "_last_result", not result if self.inverted else result)
+        return result
+
     @abstractmethod
-    def __call__(self, *args: Fact) -> bool: ...
+    def _evaluate(self, *args: Fact) -> bool: ...
 
     @abstractmethod
     def __invert__(self) -> Expression: ...
@@ -74,8 +90,14 @@ class Condition(FactHandler[ConditionCallable, bool], Expression):
         is_inverted (bool): Flag indicating whether the condition result should be inverted.
     """
 
-    def __call__(self, *args: Fact) -> bool | None:
+    def _evaluate(self, *args: Fact) -> bool:
         result = self.func(*args)
+
+        # A `None` value may be the result if `Fact` values are set to `None`
+        # Explicitly interpret `None` as `False` for the condition results
+        if result is None:
+            return False
+
         return not result if self.inverted else result
 
     def __invert__(self) -> Self:
@@ -127,7 +149,7 @@ class CompoundCondition(Expression):
 
         return result
 
-    def __call__(self, *args: Fact) -> bool:
+    def _evaluate(self, *args: Fact) -> bool:
         """
         Upon evaluation, each sub-condition is evaluated and combined using the operator. If the CompoundCondition is
         negated, the result is inverted before being returned.
@@ -231,18 +253,14 @@ class AICondition(Condition):
     attachments_template: str
     inquiry: str
     retries: int = field(default=3)
-    func: None = field(init=False, default=None)
-    _rationale: str | None = field(init=False)
+    func: None = field(default=None, init=False)
+    _rationale: str | None = field(default=None, init=False)
 
-    def __post_init__(self):
-        object.__setattr__(self, "_rationale", None)
-
-    @property
-    def rationale(self) -> str | None:
+    def last_rationale(self) -> str | None:
         """Get the last AI decision rationale."""
         return self._rationale
 
-    def __call__(self, *args: Fact) -> bool:
+    def _evaluate(self, *args: Fact) -> bool:
         # Resolve all fact attachments by their names except Similarity objects
         formatter = DeferredFormatter()
         fact_names = {key.split(".")[0]: key for key in self.facts}.keys()
@@ -410,5 +428,5 @@ class OnFactChanged(Condition):
     that need to simply update a Fact when another fact is updated.
     """
 
-    def __call__(self, *args: Fact) -> bool:
+    def _evaluate(self, *args: Fact) -> bool:
         return True

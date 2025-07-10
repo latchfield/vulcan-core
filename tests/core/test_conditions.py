@@ -37,7 +37,7 @@ class FactC(Fact):
 
 @dataclass(frozen=True, slots=True)
 class FailCondition(Condition):
-    def __call__(self, *args: Fact) -> bool:
+    def _evaluate(self, *args: Fact) -> bool:
         msg = "This condition should never be evaluated."
         raise AssertionError(msg)
 
@@ -126,14 +126,14 @@ def test_invert_condition(foo_instance: Foo):
     assert inverted(foo_instance) == (not cond(foo_instance))
 
 
-# https://github.com/latchfield/vulcan-core/issues/65  
+# https://github.com/latchfield/vulcan-core/issues/65
 def test_multiline_compound_condition_with_lambda(foo_instance: Foo, bar_instance: Bar):
     cond1 = condition(lambda: Foo.baz)
     cond2 = condition(lambda: Bar.biz)
 
     assert cond1(foo_instance) is True
     assert cond2(bar_instance) is False  # Bar.biz is False by default
-    
+
     # fmt: off
     compound_cond = (cond1
                    & cond2
@@ -295,3 +295,11 @@ def test_aicondition_model_override():
 def test_lambda_param_check():
     with pytest.raises(CallableSignatureError):
         condition(lambda x: Foo.baz)
+
+
+def test_none_expression():
+    cond1 = condition(lambda: None)
+    cond2 = cond1 | condition(lambda: True)
+
+    assert cond1() is False
+    assert cond2() is True

@@ -497,7 +497,10 @@ class ASTProcessor[T: Callable]:
         if lambda_body.startswith("lambda"):
             lambda_body = lambda_body[lambda_body.find(":") + 1 :].strip()
 
+        # Create a new lambda object with the transformed body
         # TODO: Find a way to avoid using exec or eval here
         lambda_code = f"lambda {', '.join(class_to_param.values())}: {lambda_body}"
         new_func = eval(lambda_code, caller_globals)  # noqa: S307 # nosec B307
+        new_func.__source__ = self.source
+
         return new_func
