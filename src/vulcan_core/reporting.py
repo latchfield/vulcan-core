@@ -40,9 +40,9 @@ class StopWatch:
 
     @property
     def duration(self) -> float:
-        """Get the duration beween start and stopwatch in seconds."""
+        """Get the duration between start and stopwatch in seconds."""
         if self._duration is None:
-            msg = "No stopwatch measuremnt. Call start() then stop() before accessing duration."
+            msg = "No stopwatch measurement. Call start() then stop() before accessing duration."
             raise StopWatchError(msg)
 
         return self._duration
@@ -266,7 +266,7 @@ class ActionReporter:
     def _dereference(self, value: Any) -> Primitive:
         """Detects whether the value is reference and resolves it to the actual value."""
 
-        # FIXME: This needs to be replaces with a better typed solution. This will catch unintended str value cases.
+        # FIXME: This needs to be replaced with a better typed solution. This will catch unintended str value cases.
         if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
             # Assume this is a reference, such as "{FactName.attribute}"
             template_content = value[1:-1]  # Remove curly braces

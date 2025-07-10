@@ -235,7 +235,7 @@ class RuleEngine:
             for fact_str, rules in self._rules.items():
                 if fact_str in scope:
                     for rule in rules:
-                        # Skip the rule if it was already evaluted in this iteration (due to matching on another Fact)
+                        # Skip the rule if it was already evaluated in this iteration (due to matching on another Fact)
                         if rule.id in evaluated_rules:
                             continue
                         evaluated_rules.add(rule.id)
