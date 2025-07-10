@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from types import MappingProxyType
@@ -16,6 +15,7 @@ from vulcan_core.models import DeclaresFacts, Fact
 from vulcan_core.reporting import Auditor
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
+    from collections.abc import Mapping
     from vulcan_core.actions import Action
     from vulcan_core.conditions import Expression
 

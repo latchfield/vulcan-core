@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
@@ -15,6 +14,7 @@ import yaml
 from vulcan_core.conditions import AICondition, CompoundCondition, Condition
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
+    from collections.abc import Mapping
     from vulcan_core.conditions import Expression
     from vulcan_core.engine import Rule
     from vulcan_core.models import ActionReturn, Fact

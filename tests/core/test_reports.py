@@ -134,8 +134,8 @@ def test_evaluation_report_to_yaml():
 
     # TODO: These generated tests are horrible, fix this
     iteration = Iteration(id=1)
-    iteration.stopwatch._timestamp = timestamp
-    iteration.stopwatch._duration = 0.030
+    iteration.stopwatch._timestamp = timestamp  # noqa: SLF001
+    iteration.stopwatch._duration = 0.030  # noqa: SLF001
 
     iteration.matched_rules.append(match)
 
