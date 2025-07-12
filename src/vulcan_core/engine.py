@@ -16,6 +16,7 @@ from vulcan_core.reporting import Auditor
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from collections.abc import Mapping
+
     from vulcan_core.actions import Action
     from vulcan_core.conditions import Expression
 
@@ -187,10 +188,10 @@ class RuleEngine:
 
         return updated
 
-    def _resolve_facts(self, declared: DeclaresFacts) -> list[Fact]:
+    def _resolve_facts(self, declared: DeclaresFacts, facts: dict[str, Fact]) -> list[Fact]:
         # Deduplicate the fact strings and retrieve unique fact instances
         keys = {key.split(".")[0]: key for key in declared.facts}.values()
-        return [self._facts[key.split(".")[0]] for key in keys]
+        return [facts[key.split(".")[0]] for key in keys]
 
     def evaluate(self, fact: Fact | partial[Fact] | None = None, *, audit: bool = False):
         """
@@ -228,6 +229,9 @@ class RuleEngine:
                 msg = f"Recursion limit of {self.recusion_limit} reached"
                 raise RecursionLimitError(msg)
 
+            # Ensure that rules do not interfere with one another in the same iteration
+            facts_snapshot = self._facts.copy()
+
             if audit:
                 self._audit.iteration_start()
 
@@ -242,7 +246,7 @@ class RuleEngine:
 
                         # Skip if not all facts required by the rule are present
                         try:
-                            resolved_facts = self._resolve_facts(rule.when)
+                            resolved_facts = self._resolve_facts(rule.when, facts_snapshot)
                         except KeyError as e:
                             logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
                             continue
@@ -261,12 +265,12 @@ class RuleEngine:
                         # Evaluate the action and update the consequences
                         action_result = None
                         if action:
-                            action_result = action(*self._resolve_facts(action))
+                            action_result = action(*self._resolve_facts(action, facts_snapshot))
                             facts = self._update_facts(action_result)
                             consequence.update(facts)
 
                         if audit:
-                            self._audit.rule_end(rule, action_result, self.facts, condition_result=condition_result)
+                            self._audit.rule_end(rule, action_result, facts_snapshot, condition_result=condition_result)
 
             if audit:
                 self._audit.iteration_end()

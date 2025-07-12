@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from functools import partial
 
 import pytest
+import yaml
 from langchain.schema import AIMessage, BaseMessage, ChatGeneration, ChatResult
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages.tool import tool_call
@@ -355,6 +356,68 @@ def test_ai_rule_retry(engine: RuleEngine):
     failure_count = 4
     with pytest.raises(ValueError, match="Simulated failure on attempt 4"):
         engine.evaluate()
+
+
+# Test case for https://github.com/latchfield/vulcan-core/issues/76
+def test_fact_insertion_iteration_matching():
+    # Test that rules that previously did not match are not fired in the same
+    # iteration if another fact satisfies the match criteria
+    engine = RuleEngine()
+    engine.fact(Foo())
+
+    engine.rule(
+        name="First rule",
+        when=condition(lambda: Foo.baz),
+        then=action(partial(Bar, biz=True)),
+    )
+
+    engine.rule(
+        name="Second rule",
+        when=condition(lambda: Bar.biz),
+        then=action(partial(Biff, bez=False, bil=42)),
+    )
+
+    engine.rule(
+        name="Third rule",
+        when=condition(lambda: Bar.biz and Biff.bez),
+        then=action(partial(Foo, bol=False)),
+    )
+
+    engine.evaluate(audit=True)
+    report = yaml.safe_load(engine.yaml_report())
+    matches = report["report"]["iterations"][1]["matches"]
+    assert len(matches) == 1
+
+
+# Test case for https://github.com/latchfield/vulcan-core/issues/76
+def test_rule_iteration_interactions():
+    # Test that rules that match in the same iteration do not interfere with each other
+    engine = RuleEngine()
+    engine.fact(Foo())
+    engine.fact(Bar(bul=0))
+
+    engine.rule(
+        name="First rule",
+        when=condition(lambda: Foo.baz),
+        then=action(partial(Bar, bul=10)),
+    )
+
+    engine.rule(
+        name="Second rule",
+        when=condition(lambda: Bar.bul > 5),
+        then=action(partial(Biff, bez=True, bil=0)),
+    )
+
+    engine.evaluate(audit=True)
+    report = yaml.safe_load(engine.yaml_report())
+
+    # The second rule should fire twice, but with different values
+    # The first evaluation should use the initial value of Bar.bul
+    # The second evaluation should use the updated value from the first rule
+    evaluation1 = report["report"]["iterations"][0]["matches"][1]["evaluation"]
+    evaluation2 = report["report"]["iterations"][1]["matches"][0]["evaluation"]
+    assert evaluation1 == "False = (Bar.bul|0| > 5)"
+    assert evaluation2 == "True = (Bar.bul|10| > 5)"
 
 
 # TODO: Simplify and clarify test fixtures throughout tests
