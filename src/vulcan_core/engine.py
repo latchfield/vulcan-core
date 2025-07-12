@@ -201,7 +201,7 @@ class RuleEngine:
 
         Args:
             fact: Optional fact to update and evaluate immediately
-            trace: Enables tracing for explanbility report generation
+            audit: Enables tracing for explanbility report generation
         """
         evaluated_rules: set[UUID] = set()
         consequence: set[str] = set()
