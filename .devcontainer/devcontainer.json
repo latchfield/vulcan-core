@@ -27,7 +27,8 @@
 				"tamasfe.even-better-toml",
 				"redhat.vscode-yaml",
 				"darkriszty.markdown-table-prettify",
-				"GitHub.vscode-github-actions"
+				"GitHub.vscode-github-actions",
+				"GitHub.vscode-pull-request-github"
 			]
 		}
 	},
