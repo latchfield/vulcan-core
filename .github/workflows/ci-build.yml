@@ -92,7 +92,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.cache.outputs.fully_cached || inputs.skip_cache }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
       # Cache warmup for parallel dependent jobs
       - name: Prepare the Python environment
@@ -123,7 +123,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.tests.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.tests.outputs.cache-hit }}
@@ -164,7 +164,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.security.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.security.outputs.cache-hit }}
@@ -213,7 +213,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.analysis.outputs.cache-hit }}
@@ -261,7 +261,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.build.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.build.outputs.cache-hit }}
