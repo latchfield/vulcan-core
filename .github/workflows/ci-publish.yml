@@ -75,7 +75,7 @@ jobs:
           fi
 
       - name: Lookup build cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4.3.0
         id: build
         with:
           lookup-only: true
@@ -109,7 +109,7 @@ jobs:
       id-token: write # Needed for trusted publishing
     steps:
       - name: Restore build cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4.3.0
         id: build
         with:
           path: ./dist
@@ -126,6 +126,6 @@ jobs:
 
       - name: Publish package to ${{ inputs.environment }}
         if: ${{ !env.ACT }}
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc #v1.12.4
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
         with:
           repository-url: ${{ needs.prepublish.outputs.repository_url }}
