@@ -53,7 +53,7 @@ class _AttributeVisitor(NodeVisitor):
     def __init__(self):
         self.attributes = []
 
-    def visit_Attribute(self, node):  # noqa: N802
+    def visit_Attribute(self, node):
         if isinstance(node.value, Name):
             self.attributes.append((node.value.id, node.attr))
         self.generic_visit(node)  # Continue traversing the AST
@@ -65,7 +65,7 @@ class _NestedAttributeVisitor(NodeVisitor):
     def __init__(self):
         self.has_nested = False
 
-    def visit_Attribute(self, node):  # noqa: N802
+    def visit_Attribute(self, node):
         if isinstance(node.value, Attribute):
             self.has_nested = True
         self.generic_visit(node)
@@ -77,7 +77,7 @@ class AttributeTransformer(NodeTransformer):
     def __init__(self, class_to_param):
         self.class_to_param = class_to_param
 
-    def visit_Attribute(self, node: Attribute):  # noqa: N802
+    def visit_Attribute(self, node: Attribute):
         node = self.generic_visit(node)  # type: ignore
 
         if isinstance(node.value, Name) and node.value.id in self.class_to_param:
@@ -289,7 +289,7 @@ class ASTProcessor[T: Callable]:
                     self.target_lineno = target_lineno
                     self.found_lambda = None
 
-                def visit_Lambda(self, node):  # noqa: N802 - Case sensitive for AST
+                def visit_Lambda(self, node):
                     if node.lineno == self.target_lineno:
                         self.found_lambda = node
                     self.generic_visit(node)

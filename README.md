@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- Copyright 2025 Latchfield Technologies http://latchfield.com -->
+<!-- Copyright 2026 Latchfield Technologies http://latchfield.com -->
 <img alt="Vulcan Logo" src="https://latchfield.com/vulcan/assets/images/vulcan-logo.svg" height="100px">
 
 # AI-Hybrid Rules Engine for Logical Reasoning
@@ -10,6 +10,8 @@ Vulcan is an AI-hybrid rules engine designed for advanced automated reasoning. I
 Learn more about Vulcan at [https://latchfield.com/vulcan](https://latchfield.com/vulcan), or jump in with:
 
 ```bash
+uv add vulcan-core
+# or
 poetry add vulcan-core
 # or
 pip install vulcan-core

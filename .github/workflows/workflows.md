@@ -82,13 +82,13 @@ Secrets can also be passed to the Act runner locally using Doppler:
 
 ```bash
 doppler login
-doppler run --no-read-env -- act -j build
+doppler run --no-read-env -- act -W .github/workflows/ci-build.yml -j tests -s OPENAI_API_KEY
 ```
 
 Or, if using a preconfigured `DOPPLER_TOKEN` in the environment, simply run:
 
 ```bash
-doppler run -- act -j build
+doppler run -- act -W .github/workflows/ci-build.yml -j tests -s OPENAI_API_KEY
 ```
 
 ### Notes

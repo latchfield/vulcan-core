@@ -31,8 +31,7 @@
 !SECURITY.md
 !Dockerfile
 !pyproject.toml
-!poetry.lock
-!poetry.toml
+!uv.lock
 !mkdocs.yml
 
 # Ignore these after the recusive include

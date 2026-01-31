@@ -1,15 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025 Latchfield Technologies http://latchfield.com
+# Copyright 2026 Latchfield Technologies http://latchfield.com
 [project]
-dynamic = ["version", "dependencies", "classifiers"]
 name = "vulcan-core"
+version="1.2.1"
 license="Apache-2.0"
 description = "AI-Hybrid Rules Engine for Logical Reasoning."
 readme = "README.md"
 authors = []
 keywords = ["rules", "logic", "reasoning", "ai", "artificial intelligence", "RAG", "LLM"]
 requires-python = ">=3.12,<4.0"
-dependencies = ["pyyaml (>=6.0.2,<7.0.0)", "pydantic (>=2.11.7,<3.0.0)"]
+dependencies = ["pyyaml (>=6.0.2,<7.0.0)",
+                "pydantic (>=2.11.7,<3.0.0)",
+                "langchain==0.3.*",
+]
+classifiers = [
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: OS Independent"
+]
+
+[project.optional-dependencies]
+openai = [
+  "langchain-openai==0.3.*"
+]
+
 
 [project.urls]
 homepage = "https://latchfield.com/vulcan"
@@ -17,22 +31,11 @@ repository = "https://github.com/latchfield/vulcan-core"
 documentation = "https://latchfield.com/vulcan/docs"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build==0.9.*"]
+build-backend = "uv_build"
 
-[tool.poetry]
-version = "1.2.0" # Update manually, or use plugin
-packages = [{ include = "vulcan_core", from="src" }]
-requires-poetry = "~2.1.4"
-classifiers = [
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Operating System :: OS Independent"
-]
-# These are needed until dependabot issue is resolved: https://github.com/dependabot/dependabot-core/issues/11237
-name = "vulcan-core"
-description = ""
-authors = []
+[tool.uv]
+required-version = "==0.9.*"
 
 [tool.ruff]
 line-length = 120
@@ -76,33 +79,33 @@ asyncio_default_fixture_loop_scope = "function"
 source = ["src"]
 branch = true # Could be an issue if true for native decoration: https://github.com/microsoft/vscode-python/issues/24156
 
-[tool.poetry.requires-plugins]
-# Not working unless installed via pipx
-#poetry-plugin-up = "0.9.0"
-
-[tool.poetry.dependencies]
-langchain = { version = "~0.3.25", optional = true } 
-langchain-openai = { version = "~0.3.28", optional = true }
-
-[tool.poetry.extras]
-openai = ["langchain", "langchain-openai"]
-
-[project.optional-dependencies]
-openai = ["langchain", "langchain-openai"]
-
-[tool.poetry.group.test.dependencies]
-pytest = "~8.4.1"
-pytest-asyncio = "~1.0.0"
-pytest-timeout = "~2.4.0"
-pytest-cov = "~6.2.1"
-pytest-xdist = "~3.7.0"
-doppler-env = "~0.3.1"
-
-[tool.poetry.group.dev.dependencies]
-bandit = "~1.8.5"
-deptry = "~0.23.0"
-langchain-chroma = "~0.2.4" # On py3.13 needs a compiler installed until transitive dependency numpy 1.26.4 has a whl
-ipykernel = "~6.29.5"
-ruff = "~0.12.0"
-pyright = {extras = ["nodejs"], version = "1.1.402"}
-twine = "~6.1.0"
+[dependency-groups]
+dev = [
+  {include-group = "lint"},
+  {include-group = "test"},
+  {include-group = "lab"},
+  {include-group = "tools"},
+]
+lint = [
+    "bandit==1.9.*",
+    "deptry==0.24.*",
+    "ruff==0.14.*",
+    "pyright[nodejs]==1.1.402",
+]
+test = [
+    "pytest ==8.4.*",
+    "pytest-asyncio ==1.0.*",
+    "pytest-timeout ==2.4.*",
+    "pytest-cov ==6.2.*",
+    "pytest-xdist ==3.7.*",
+    "doppler-env ==0.3.*",
+    "langchain-chroma==0.2.*"
+]
+lab = [
+    "ipykernel==6.*",
+    "ipywidgets==8.1.*",
+]
+tools = [
+    "tldr",
+    "twine==6.1.*"
+]

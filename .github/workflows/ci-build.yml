@@ -26,7 +26,7 @@ concurrency:
 jobs:
   prebuild:
     name: Prebuild Checks
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: ${{ github.event_name != 'pull_request' || (!startsWith(github.head_ref, 'dependabot/devcontainers/') && !startsWith(github.head_ref, 'dependabot/docker/')) }}
     concurrency:
       group: prebuild-${{ github.sha }}
@@ -37,7 +37,7 @@ jobs:
       build-cache-hit: ${{ steps.build.outputs.cache-hit && !inputs.skip_cache }}
     steps:
       - name: Lookup test result cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: tests
         with:
           lookup-only: true
@@ -45,7 +45,7 @@ jobs:
           key: tests-${{ github.sha }}
 
       - name: Lookup security scan result cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: security
         with:
           lookup-only: true
@@ -53,7 +53,7 @@ jobs:
           key: security-${{ github.sha }}
 
       - name: Lookup static analysis result cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: analysis
         with:
           lookup-only: true
@@ -61,7 +61,7 @@ jobs:
           key: analysis-${{ github.sha }}
 
       - name: Lookup build cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: build
         with:
           lookup-only: true
@@ -92,7 +92,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.cache.outputs.fully_cached || inputs.skip_cache }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
       # Cache warmup for parallel dependent jobs
       - name: Prepare the Python environment
@@ -101,7 +101,7 @@ jobs:
 
   tests:
     name: Functional Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prebuild
     if: ${{ needs.prebuild.outputs.tests-cache-hit != 'true' }}
     concurrency:
@@ -110,7 +110,7 @@ jobs:
       CI: true
     steps:
       - name: Fetch test result cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: tests
         with:
           path: ./reports/tests/*
@@ -123,7 +123,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.tests.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
       - name: Prepare the Python environment
         if: ${{ !steps.tests.outputs.cache-hit }}
@@ -132,7 +132,7 @@ jobs:
       - name: Run unit tests
         if: ${{ !steps.tests.outputs.cache-hit && github.event_name == 'pull_request'}}
         shell: bash
-        run: poetry run pytest --cov-report lcov:./reports/tests/coverage.lcov
+        run: pytest --cov-report lcov:./reports/tests/coverage.lcov
 
       # For security and cost reasons, don't run integration tests on PRs
       - name: Run unit and integration tests
@@ -140,18 +140,18 @@ jobs:
         shell: bash
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: poetry run pytest --cov-report lcov:./reports/tests/coverage.lcov --plus_integration
+        run: pytest --cov-report lcov:./reports/tests/coverage.lcov --plus_integration
 
   security:
     name: Security Checks
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prebuild
     if: ${{ needs.prebuild.outputs.security-cache-hit != 'true' }}
     concurrency:
       group: security-${{ github.sha }}
     steps:
       - name: Fetch security scan result cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: security
         with:
           path: ./reports/security/*
@@ -164,7 +164,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.security.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
       - name: Prepare the Python environment
         if: ${{ !steps.security.outputs.cache-hit }}
@@ -172,35 +172,29 @@ jobs:
 
       - name: Check for outdated project dependencies
         if: ${{ !steps.security.outputs.cache-hit }}
-        run: poetry show -n --outdated --latest --top-level --without=dev,test  | tee ./reports/security/outdated-dependencies.txt | awk 'NF {print "::warning title=Outdated Dependency::" $0}'
+        run: uv tree -d 1 --outdated  --no-dev | grep -e "^├.*latest.*" || true | tee ./reports/security/outdated-dependencies.txt | awk 'NF {print "::warning title=Outdated Dependency::" $0}'
         shell: bash
 
       - name: Check for outdated dev/test dependencies
         if: ${{ !steps.security.outputs.cache-hit }}
-        run: poetry show -n --outdated --latest --top-level --only=dev,test | tee ./reports/security/outdated-dependencies-dev.txt | awk 'NF {print "::notice title=Outdated dev/test Dependency::" $0}'
+        run: uv tree -d 1 --outdated  --only-dev | grep -e "^├.*latest.*" || true | tee ./reports/security/outdated-dependencies-dev.txt | awk 'NF {print "::notice title=Outdated dev/test Dependency::" $0}'
         shell: bash
-
-      # TODO: Need to find a replacement for poetry audit plugin
-      # - name: Check for CVEs in dependencies
-      #   if: ${{ !steps.security.outputs.cache-hit }}
-      #   run: poetry audit -n | tee ./reports/security/package-audit.txt
-      #   shell: bash
 
       - name: Run security checks
         if: ${{ !steps.security.outputs.cache-hit }}
-        run: poetry run bandit -r src | tee ./reports/security/code-scan.txt
+        run: bandit -r src | tee ./reports/security/code-scan.txt
         shell: bash
 
   analysis:
     name: Static Analysis
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prebuild
     if: ${{ needs.prebuild.outputs.analysis-cache-hit != 'true' }}
     concurrency:
       group: analysis-${{ github.sha }}
     steps:
       - name: Fetch static analysis result cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: analysis
         with:
           path: ./reports/analysis/*
@@ -213,7 +207,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
       - name: Prepare the Python environment
         if: ${{ !steps.analysis.outputs.cache-hit }}
@@ -221,24 +215,24 @@ jobs:
 
       - name: Check for unused dependencies
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        run: poetry run deptry ./src | tee ./reports/analysis/unused-dependencies.txt
+        run: deptry ./src | tee ./reports/analysis/unused-dependencies.txt
         shell: bash
 
       - name: Perform Ruff rule checks
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        run: poetry run ruff check | tee ./reports/analysis/code-rules.txt
+        run: ruff check | tee ./reports/analysis/code-rules.txt
         shell: bash
 
       - name: Perform Pyright typing checks
         if: ${{ !steps.analysis.outputs.cache-hit }}
         env:
           PYRIGHT_PYTHON_PYLANCE_VERSION: latest-release
-        run: poetry run pyright ./src | tee ./reports/analysis/typing.txt
+        run: pyright ./src | tee ./reports/analysis/typing.txt
         shell: bash
 
   build:
     name: Build Package
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prebuild, tests, security, analysis]
     if: ${{ !failure() && !cancelled() && needs.prebuild.outputs.build-cache-hit != 'true' && needs.prebuild.result != 'skipped' }}
     concurrency:
@@ -246,7 +240,7 @@ jobs:
     steps:
       # If a version tag, cache packages for possible deploy
       - name: Fetch build cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 #v4.2.4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
         id: build
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         with:
@@ -261,7 +255,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.build.outputs.cache-hit }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
 
       - name: Prepare the Python environment
         if: ${{ !steps.build.outputs.cache-hit }}
@@ -270,8 +264,8 @@ jobs:
       - name: Build packages
         if: ${{ !steps.build.outputs.cache-hit }}
         shell: bash
-        run: poetry build
+        run: uv build
 
       - name: Check package description
         if: ${{ !steps.build.outputs.cache-hit }}
-        run: poetry run twine check --strict ./dist/*
+        run: twine check --strict ./dist/*

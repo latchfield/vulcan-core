@@ -1,4 +1,5 @@
 -P ubuntu-latest=actimage
+-P ubuntu-24.04=actimage
 -P ubuntu-22.04=actimage
 -P ubuntu-20.04=actimage
 -P ubuntu-18.04=actimage

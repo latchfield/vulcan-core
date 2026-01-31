@@ -2,18 +2,21 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 // Recommend enabling vscode "dev.containers.experimentalLockfile" https://github.com/microsoft/vscode-remote-release/issues/8330
 {
-	// "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
 	"build": {
-			"dockerfile": "./Dockerfile",
-			"context": "."
-		},	
-	"features": {
-		"ghcr.io/devcontainers/features/github-cli:1.0.14": {},
-		"ghcr.io/devcontainers/features/docker-in-docker:2.12.2": {
-			"moby": true
-		}
-		// "ghcr.io/devcontainers-contrib/features/poetry:2": {} // Need to fork and add plugin install
+		"dockerfile": "./Dockerfile",
+		"context": "."
 	},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1.1.0": {},
+		"ghcr.io/devcontainers/features/docker-in-docker:2.14.0": {
+			"moby": false
+		}
+	},
+	"mounts": [
+		"source=devcache,target=${containerWorkspaceFolder}/../.cache",
+		"source=devcache-apt,target=/var/cache/apt",
+		"source=devcache-apt,target=/var/lib/apt"
+	],
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -22,11 +25,8 @@
 				"ms-toolsai.jupyter",
 				"ms-python.python",
 				"ms-vscode.live-server",
-				"pucelle.run-on-save",
-				"stkb.rewrap",
 				"tamasfe.even-better-toml",
 				"redhat.vscode-yaml",
-				"darkriszty.markdown-table-prettify",
 				"GitHub.vscode-github-actions",
 				"GitHub.vscode-pull-request-github"
 			]
@@ -35,15 +35,15 @@
 	"postCreateCommand": "./.devcontainer/post-create.sh",
 	"postStartCommand": "./.devcontainer/post-start.sh",
 	"containerEnv": {
-		"WORKSPACE_DIR": "${containerWorkspaceFolder}",
+		"WORKSPACE": "${containerWorkspaceFolder}",
+		"UV_LINK_MODE": "symlink",
+		"UV_CACHE_DIR": "${containerWorkspaceFolder}/../.cache/uv",
+		"PIP_CACHE_DIR": "${containerWorkspaceFolder}/../.cache/pip"
+	},
+	"remoteEnv": {
 		"EDITOR": "code --wait",
 		"DOPPLER_ENV": "1",
-		// "DOPPLER_ENV_LOGGING": "1" // Breaks poetry due to output, set in launch.json instead
+		// "DOPPLER_ENV_LOGGING": "1" // Can break applications due to output, set in launch.json instead
 		"DOPPLER_TOKEN": "${localEnv:LC_DOPPLER_TOKEN}" // Secret token. LC_* ENVs are usually allowed by SSHd
-	},
-	"portsAttributes": {
-		"8000": {
-			"label": "mkdocs serve"
-		}
 	}
 }

@@ -28,7 +28,7 @@ _Details of where and you are running the code._
 
 _Example:_
 > - OS: [e.g. Ubuntu 20.04]
-> - Package Manager: [e.g. Poetry]
+> - Package Manager: [e.g. uv]
 > - Version [e.g. v1.0.0]
 > - Link/attachment of your project lockfile
 > - etc.

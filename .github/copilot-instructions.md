@@ -4,13 +4,12 @@ This is a Python-based repository that provides a library and CLI tools for buil
 
 ### Environment Setup
 - The working environment is configured and ready to use. Do not perform initial project setup steps, such as package installation.
-- Use `poetry run` to run all Python-related commands in the virtual environment (e.g. `poetry run python`, `poetry run pytest`, etc.).
 
 ### Required Before Each Commit
-1. Run `poetry run deptry ./src` to check for dependency issues. Fix all issues using `poetry add` or `poetry remove`.
-2. Run `poetry run ruff check --fix --unsafe-fixes --output-format=grouped` to check and fix linting issues.
-3. Run `poetry run pyright ./src` to check for type errors. Fix all reported issues.
-4. Run `poetry run pytest --plus_integration` to ensure all tests pass. Fix all reported issues.
+1. Run `deptry ./src` to check for dependency issues. Fix all issues using `uv add` or `uv remove`.
+2. Run `ruff check --fix --unsafe-fixes --output-format=grouped` to check and fix linting issues.
+3. Run `pyright ./src` to check for type errors. Fix all reported issues.
+4. Run `pytest --plus_integration` to ensure all tests pass. Fix all reported issues.
 
 ### Development Flow
 1. Formulate a high-level plan by breaking down major goals into groups of related changes. Prioritize simple changes first.
@@ -24,7 +23,7 @@ This is a Python-based repository that provides a library and CLI tools for buil
 ### Testing Considerations
 - Only run integration tests when working on integration tests, or preparing to commit. When doing so, run only the relevant test.
 - When working on an integration test, run only the test(s) you are working on.
-- Always run the full unit test suite with `poetry run pytest` (this does not run integration tests). Run after each change.
+- Always run the full unit test suite with `pytest` (this does not run integration tests). Run after each change.
 - Each test should cover a single expected behavior, use concise and readable code, minimal comments, and ideally fewer than 3 assertions. Use pytest fixtures to set up common test scenarios.
 - Use integration tests sparingly, only for end-to-end scenarios involving multiple components.
 - Avoid overlapping tests, tests of internal or private implementation details, or tests of only native Python/third-party library behavior.

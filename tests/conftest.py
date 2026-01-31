@@ -106,7 +106,7 @@ def organize_hierarchy(items: list[Item]):
         # Get the path parts for creating the hierarchy
         original_nodeid = item.nodeid
         if "::" in original_nodeid:
-            path, test_id = original_nodeid.split("::", 1)
+            path, _ = original_nodeid.split("::", 1)
             path = path.removeprefix("tests/")
             path_parts = path.split("/")
 
