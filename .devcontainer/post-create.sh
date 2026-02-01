@@ -16,8 +16,8 @@ fi
 
 # Ensure shared cache is owned by vscode user
 set +e
-if mountpoint -q ${WORKSPACE}/../.cache; then
-    sudo chown vscode:vscode ${WORKSPACE}/../.cache
+if mountpoint -q "${WORKSPACE}/../.cache"; then
+    sudo chown vscode:vscode "${WORKSPACE}/../.cache"
 else
     log "WARNING: Shared cache mount not found: ${WORKSPACE}/../.cache. Creating local .cache directory."
     sudo mkdir -p ${WORKSPACE}/../.cache

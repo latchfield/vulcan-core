@@ -21,5 +21,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN echo "15 * * * * apt-get update && apt upgrade -y" | crontab -
 
 # Install Nektos Act
-RUN wget https://github.com/nektos/act/releases/download/v0.2.84/act_Linux_x86_64.tar.gz -O /tmp/act_linux.tar.gz
-RUN tar -xzf /tmp/act_linux.tar.gz -C /usr/bin act
+ARG ACT_VERSION=v0.2.84
+ARG ACT_SHA256=19d4525fb0d80ff50bd3252d3fa47ee1265a331fe4c39249ac65347e527e16e2
+RUN wget "https://github.com/nektos/act/releases/download/${ACT_VERSION}/act_Linux_x86_64.tar.gz" -O /tmp/act_linux.tar.gz &&\
+    echo "${ACT_SHA256} /tmp/act_linux.tar.gz" | sha256sum -c - &&\
+    tar -xzf /tmp/act_linux.tar.gz -C /usr/bin act
