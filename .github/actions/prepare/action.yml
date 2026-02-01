@@ -10,44 +10,44 @@ runs:
       id: config
       shell: bash
       run: |
-        # Adjust permissions for action/cache
-        if command -v sudo &> /dev/null; then
-          sudo mkdir -p /root/.local/bin
-          sudo find /root/ -type d -exec chmod a+rx {} \;
-          sudo chmod -R a+r /root/.local/bin          
-        fi
-
         # Ensure local binaries are on the PATH
-        echo "/root/.local/bin" >> "$GITHUB_PATH"
-        echo "${GITHUB_WORKSPACE}/.venv/bin" >> "$GITHUB_PATH"
+        echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+        echo "${HOME}/.local/share/pipx/bin/" >> "$GITHUB_PATH"
 
-        # Create report directores
+        # Create report directores        
+        set -x
         mkdir -p ./reports/tests
         mkdir -p ./reports/security
         mkdir -p ./reports/analysis
+        set +x
 
         # Lookup required uv version
         echo "uv_version=$(grep -Po 'required-version\s*=\s*"\K[^"]*' pyproject.toml)" >> $GITHUB_OUTPUT
 
-    - name: Configure pipx cache
+    - name: Configure dependency cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
-      id: pipx
+      id: dependencies
       with:
         path: |
-          /root/.local/bin/
-          /root/.local/share/pipx/
-          /root/.cache/uv/
-        key: pipx-uv-${{ steps.config.outputs.uv_version }}
+          /home/runner/.local/share/pipx/
+          /home/runner/.cache/uv/
+        key: pipx-uv-${{ steps.config.outputs.uv_version }}-${{ hashFiles('uv.lock') }}
 
-    - name: Install uv with pipx
-      if: ${{ steps.pipx.outputs.cache-hit != 'true' }}
+    - name: Install pipx tools
+      if: ${{ steps.dependencies.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
+        set -x
         pipx install -f "uv${{ steps.config.outputs.uv_version }}"
+        mkdir -p "${HOME}/.local/share/pipx/bin/"
+        cp -d $(which uv) "${HOME}/.local/share/pipx/bin/"
+        cp -d $(which uvx) "${HOME}/.local/share/pipx/bin/"
 
-    - name: Install Python dependencies
+    - name: Install package dependencies
       shell: bash
       run: |
-        uv python ls
+        set -x
         uv --version
+        uv cache dir
+        uv python ls        
         uv sync --link-mode symlink --all-extras
