@@ -93,12 +93,12 @@ lint = [
     "pyright[nodejs]==1.1.402",
 ]
 test = [
-    "pytest ==8.4.*",
-    "pytest-asyncio ==1.0.*",
-    "pytest-timeout ==2.4.*",
-    "pytest-cov ==6.2.*",
-    "pytest-xdist ==3.7.*",
-    "doppler-env ==0.3.*",
+    "pytest==8.4.*",
+    "pytest-asyncio==1.0.*",
+    "pytest-timeout==2.4.*",
+    "pytest-cov==6.2.*",
+    "pytest-xdist==3.7.*",
+    "doppler-env==0.3.*",
     "langchain-chroma==0.2.*"
 ]
 lab = [
