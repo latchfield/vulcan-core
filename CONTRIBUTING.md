@@ -228,7 +228,7 @@ see a preview of the documentation on the pull request page.
 From the **repo root**, run the following command to install the dependencies:
 
 ```bash
-uv install --all-extras
+uv sync --all-extras
 ```
 
 #### Building
