@@ -13,6 +13,11 @@ runs:
         # Ensure local binaries are on the PATH
         echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
         echo "${HOME}/.local/share/pipx/bin/" >> "$GITHUB_PATH"
+        echo "${GITHUB_WORKSPACE}/.venv/bin" >> "$GITHUB_PATH"
+
+        # Configure pipx environment
+        echo "PIPX_HOME=${HOME}/.local/share/pipx" >> $GITHUB_ENV
+        echo "PIPX_BIN_DIR=${HOME}/.local/share/pipx/bin" >> $GITHUB_ENV
 
         # Create report directores        
         set -x
@@ -21,32 +26,42 @@ runs:
         mkdir -p ./reports/analysis
         set +x
 
-        # Lookup required uv version
-        echo "uv_version=$(grep -Po 'required-version\s*=\s*"\K[^"]*' pyproject.toml)" >> $GITHUB_OUTPUT
+        # Resolve the uv version to install
+        SPEC="$(grep -Po 'required-version\s*=\s*"\K[^"]*' pyproject.toml)"
+        PACKAGE="uv"
+        UV_VERSION=$(python3 -c "import sys, json, packaging.specifiers, packaging.version; spec = packaging.specifiers.SpecifierSet('${SPEC}'); data = json.load(sys.stdin); print(max((v for v in data['releases'].keys() if v in spec), key=packaging.version.Version, default=''))" < <(curl -s "https://pypi.org/pypi/${PACKAGE}/json"))
+        echo "uv_version=${UV_VERSION}" >> $GITHUB_OUTPUT
 
-    - name: Configure dependency cache
+    - name: Configure pipx cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
-      id: dependencies
+      id: pipx
       with:
         path: |
           /home/runner/.local/share/pipx/
+        key: pipx-uv-${{ steps.config.outputs.uv_version }}
+
+    - name: Configure uv cache
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+      id: uv
+      with:
+        path: |
           /home/runner/.cache/uv/
-        key: pipx-uv-${{ steps.config.outputs.uv_version }}-${{ hashFiles('uv.lock') }}
+        key: uv-${{ hashFiles('uv.lock') }}
 
     - name: Install pipx tools
-      if: ${{ steps.dependencies.outputs.cache-hit != 'true' }}
+      if: ${{ steps.pipx.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         set -x
-        pipx install -f "uv${{ steps.config.outputs.uv_version }}"
-        mkdir -p "${HOME}/.local/share/pipx/bin/"
-        cp -d $(which uv) "${HOME}/.local/share/pipx/bin/"
-        cp -d $(which uvx) "${HOME}/.local/share/pipx/bin/"
+        pipx environment
+        pipx install -f "uv==${{ steps.config.outputs.uv_version }}"
 
     - name: Install package dependencies
       shell: bash
       run: |
         set -x
+        which uv
+        readlink -f $(which uv)
         uv --version
         uv cache dir
         uv python ls        
