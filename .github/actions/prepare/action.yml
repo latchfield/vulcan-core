@@ -19,7 +19,10 @@ runs:
         echo "PIPX_HOME=${HOME}/.local/share/pipx" >> $GITHUB_ENV
         echo "PIPX_BIN_DIR=${HOME}/.local/share/pipx/bin" >> $GITHUB_ENV
 
-        # Create report directores        
+        # Configure uv environment
+        echo "UV_LINK_MODE=symlink" >> $GITHUB_ENV
+
+        # Create report directories        
         set -x
         mkdir -p ./reports/tests
         mkdir -p ./reports/security
@@ -56,6 +59,13 @@ runs:
         pipx environment
         pipx install -f "uv==${{ steps.config.outputs.uv_version }}"
 
+    - name: Warm UV cache
+      if: ${{ steps.uv.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        set -x
+        uv run just warm_uv_cache
+
     - name: Install package dependencies
       shell: bash
       run: |
@@ -64,5 +74,5 @@ runs:
         readlink -f $(which uv)
         uv --version
         uv cache dir
-        uv python ls        
-        uv sync --link-mode symlink --all-extras
+        uv sync --all-extras
+        python --version

@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Latchfield Technologies http://latchfield.com
+name: "Run compatibility test"
+description: "Prepares the environment and runs unit tests for a given Python version"
+
+inputs:
+  python_version:
+    description: "Python version to test against (may end with '-lowest_deps' for lowest dependency resolution)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare the Python environment
+      uses: ./.github/actions/prepare
+
+    - name: Run unit tests
+      if: ${{ !endsWith(inputs.python_version, '-lowest_deps') }}
+      shell: bash
+      run: |
+        uv run --isolated --python ${{ inputs.python_version }} --all-extras pytest -q --no-cov -o addopts=""
+
+    - name: Run unit tests (lowest dependencies)
+      if: ${{ endsWith(inputs.python_version, '-lowest_deps') }}
+      shell: bash
+      run: |
+        py_ver="${{ inputs.python_version }}"
+        py_ver="${py_ver%-lowest_deps}"
+        uv run --isolated --python "$py_ver" --resolution lowest-direct --all-extras pytest -q --no-cov -o addopts=""
+
+    - name: Record compatibility result
+      shell: bash
+      run: |
+        mkdir -p ./reports/compatibility/${{ inputs.python_version }}
+        echo "pass" > ./reports/compatibility/${{ inputs.python_version }}/result.txt

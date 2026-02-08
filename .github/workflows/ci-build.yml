@@ -35,6 +35,8 @@ jobs:
       security-cache-hit: ${{ steps.security.outputs.cache-hit && !inputs.skip_cache }}
       analysis-cache-hit: ${{ steps.analysis.outputs.cache-hit && !inputs.skip_cache }}
       build-cache-hit: ${{ steps.build.outputs.cache-hit && !inputs.skip_cache }}
+      python_versions: ${{ steps.config.outputs.python_versions }}
+      python_lowest_ver: ${{ steps.config.outputs.python_lowest_ver }}
     steps:
       - name: Lookup test result cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
@@ -99,6 +101,59 @@ jobs:
         if: ${{ !steps.cache.outputs.fully_cached || inputs.skip_cache }}
         uses: ./.github/actions/prepare
 
+      - name: Get configuration info
+        id: config
+        shell: bash
+        run: |
+          # Resolve the Python versions supported by the project:
+          echo "python_versions=$(just --evaluate py_other_vers | jq -Rc 'split(" ") | map(select(length > 0))')" >> $GITHUB_OUTPUT
+          echo "python_lowest_ver=$(just --evaluate py_lowest_ver)" >> $GITHUB_OUTPUT
+
+  compatibility:
+    name: "Compatibility Test on Python ${{ matrix.python_version }}"
+    runs-on: ubuntu-24.04
+    needs: prebuild
+    concurrency:
+      group: compatibility-${{ matrix.python_version }}-${{ github.sha }}
+    env:
+      CI: true    
+    strategy:
+      # max-parallel: 1
+      matrix:
+        python_version: ${{ fromJSON(needs.prebuild.outputs.python_versions) }}
+        include:
+          - python_version: ${{ needs.prebuild.outputs.python_lowest_ver }}-lowest_deps
+    steps:
+      - name: Fetch compatibility result cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        id: compat
+        with:
+          lookup-only: true
+          path: ./reports/compatibility/${{ matrix.python_version }}
+          key: compatibility-${{ matrix.python_version }}-${{ github.sha }}
+
+      - name: Report on cache
+        if: ${{ steps.compat.outputs.cache-hit == 'true' && !inputs.skip_cache }}
+        run: |
+          echo "::notice::Skipping compatibility test for Python ${{ matrix.python_version }} due to cached result for this commit."
+
+      - name: Checkout codebase
+        if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Run compatibility test
+        if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
+        uses: ./.github/actions/compatibility-test
+        with:
+          python_version: ${{ matrix.python_version }}
+
+      - name: Save compatibility result cache
+        if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        with:
+          path: ./reports/compatibility/${{ matrix.python_version }}
+          key: compatibility-${{ matrix.python_version }}-${{ github.sha }}
+        
   tests:
     name: Functional Tests
     runs-on: ubuntu-24.04
@@ -233,7 +288,7 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-24.04
-    needs: [prebuild, tests, security, analysis]
+    needs: [prebuild, tests, compatibility, security, analysis]
     if: ${{ !failure() && !cancelled() && needs.prebuild.outputs.build-cache-hit != 'true' && needs.prebuild.result != 'skipped' }}
     concurrency:
       group: build-${{ github.sha }}

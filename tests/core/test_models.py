@@ -8,12 +8,20 @@ from dataclasses import dataclass, field
 from functools import partial
 
 import pytest
-from langchain.schema import Document
-from langchain_chroma import Chroma
+from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
 from vulcan_core import Fact, Similarity
 from vulcan_core.models import ProxyLazyLookup, RetrieverAdapter
+
+# Optional dependencies for chroma tests
+# TODO Remove this check once 3.14 is supported for chroma (due to its pydantic dependency)
+try:
+    from langchain_chroma import Chroma
+    CHROMA_SUPPORTED = True
+except Exception:
+    CHROMA_SUPPORTED = False
+chroma_skip_reason = "Chroma is not yet supported on Python 3.14"
 
 
 # TODO: Do we need a dynamic/mutable fact type?
@@ -41,6 +49,7 @@ def newspaper(chroma: RetrieverAdapter) -> NewsPaper:
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(not CHROMA_SUPPORTED, reason=chroma_skip_reason)
 def test_retriever_adapter(chroma: RetrieverAdapter):
     assert chroma["Oil"][0] == "Texas"
 
@@ -128,6 +137,7 @@ def test_union_incompatible_facts():
     with pytest.raises(TypeError):
         foo | bar  # type: ignore
 
+
 def test_union_incompatible_partial_facts():
     class Foo(Fact):
         foo: str
@@ -139,4 +149,4 @@ def test_union_incompatible_partial_facts():
     foo = Foo(foo="foo")
 
     with pytest.raises(TypeError):
-        foo | partial(Bar, baz=1)  # type: ignore        
+        foo | partial(Bar, baz=1)  # type: ignore

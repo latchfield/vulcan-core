@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from vulcan_core.conditions import AICondition, CompoundCondition, Condition
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from collections.abc import Mapping
+
     from vulcan_core.conditions import Expression
     from vulcan_core.engine import Rule
     from vulcan_core.models import ActionReturn, Fact
@@ -254,7 +256,8 @@ class ActionReporter:
         else:
             # For complete fact updates, report all attributes include default values
             fact_name = fact.__class__.__name__
-            attributes = [(attr_name, getattr(fact, attr_name)) for attr_name in fact.__annotations__]
+            annotations = inspect.get_annotations(fact.__class__)
+            attributes = [(attr_name, getattr(fact, attr_name)) for attr_name in annotations]
 
         # Dereference values and append to the consequences list
         for attr_name, value in attributes:

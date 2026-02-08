@@ -33,6 +33,7 @@
 !pyproject.toml
 !uv.lock
 !mkdocs.yml
+!justfile
 
 # Ignore these after the recusive include
 __pycache__

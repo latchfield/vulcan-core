@@ -6,9 +6,11 @@ from functools import partial
 
 import pytest
 import yaml
-from langchain.schema import AIMessage, BaseMessage, ChatGeneration, ChatResult
+from langchain.messages import AIMessage
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
+from langchain_core.messages import BaseMessage
 from langchain_core.messages.tool import tool_call
+from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable
 
 from tests.core.fixtures.rule_loading import load_simple_rule
