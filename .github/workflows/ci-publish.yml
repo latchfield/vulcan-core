@@ -51,15 +51,7 @@ jobs:
 
           # Ensure we are operating on a version tag
           if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
-            echo "::error::Publishing must be done from a version tag."
-            exit 1
-          fi
-
-          # Ensure the version in pyproject.toml matches the git tag
-          GIT_TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          PYPROJECT_VERSION=$(grep -Eo '^version\s*=\s*"[0-9.]*' pyproject.toml | cut -d'"' -f2)
-          if [[ "${GITHUB_REF#refs/tags/v}" != "$PYPROJECT_VERSION" ]]; then
-            echo "::error::Version mismatch! Git tag ($GIT_TAG_VERSION) doesn't match pyproject.toml version ($PYPROJECT_VERSION)"
+            echo "::error::Publishing must be from a version-tagged commit."
             exit 1
           fi
 

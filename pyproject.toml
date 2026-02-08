@@ -2,7 +2,7 @@
 # Copyright 2026 Latchfield Technologies http://latchfield.com
 [project]
 name = "vulcan-core"
-version="1.2.2"
+dynamic = ["version"]
 license="Apache-2.0"
 description = "AI-Hybrid Rules Engine for Logical Reasoning."
 readme = "README.md"
@@ -30,12 +30,24 @@ repository = "https://github.com/latchfield/vulcan-core"
 documentation = "https://latchfield.com/vulcan/docs"
 
 [build-system]
-requires = ["uv_build==0.9.*"]
-build-backend = "uv_build"
+requires = ["hatchling==1.28.*","hatch-vcs==0.5.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+fallback-version = "0.0.0"
+version-file = "src/vulcan_core/__about__.py"
+
+[tool.hatch.version.raw-options]
+version_scheme = "no-guess-dev"
+local_scheme = "node-and-date"
 
 [tool.uv]
 required-version = "==0.9.*"
 python-preference = "only-managed"
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 # no-build = true
 
 [tool.ruff]

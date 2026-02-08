@@ -3073,7 +3073,6 @@ wheels = [
 
 [[package]]
 name = "vulcan-core"
-version = "1.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "langchain" },
