@@ -10,6 +10,8 @@
 !.vscode/**
 !src/
 !src/**
+!utils/
+!utils/**
 !docs/
 !docs/**
 !tests/
