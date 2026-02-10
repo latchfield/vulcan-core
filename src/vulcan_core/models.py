@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from copy import copy
@@ -17,7 +18,7 @@ from typing import (
     runtime_checkable,
 )
 
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from vulcan_core.util import is_private
 
@@ -50,7 +51,8 @@ class ImmutableAttrAsDict:
         return hasattr(self, self.validate(key))
 
     def __iter__(self) -> Iterator[str]:
-        return (key for key in self.__annotations__ if not is_private(key))
+        annotations = inspect.get_annotations(type(self))
+        return (key for key in annotations if not is_private(key))
 
     def __len__(self) -> int:
         return sum(1 for _ in self)
@@ -60,7 +62,8 @@ class ImmutableAttrAsDict:
             msg = f"Access denied to private attribute: {key}"
             raise KeyError(msg)
 
-        if key not in self.__annotations__:
+        annotations = inspect.get_annotations(type(self))
+        if key not in annotations:
             raise KeyError(key)
 
         return key

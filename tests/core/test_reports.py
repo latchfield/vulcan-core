@@ -4,8 +4,12 @@
 from datetime import UTC, datetime
 from functools import partial
 
+from langchain.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 import pytest
 import yaml
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages.tool import tool_call
 
 from vulcan_core import Fact, RuleEngine, action, condition
 from vulcan_core.reporting import (
@@ -17,6 +21,7 @@ from vulcan_core.reporting import (
 )
 
 # TODO: This test suite is AI slop and need to be refactored, but it seems to cover most cases for now.
+
 
 class Foo(Fact):
     bar: bool = True
@@ -821,9 +826,6 @@ def test_custom_condition_duplicate_facts():
 
 def test_ai_condition_evaluation_formatting():
     """Test that AI conditions are properly formatted in evaluation reports."""
-    from langchain.schema import AIMessage, ChatGeneration, ChatResult
-    from langchain_core.language_models import BaseChatModel
-    from langchain_core.messages.tool import tool_call
 
     class MockModel(BaseChatModel):
         """Mock model for AI condition testing"""

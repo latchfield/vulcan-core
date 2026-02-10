@@ -35,6 +35,10 @@ jobs:
       security-cache-hit: ${{ steps.security.outputs.cache-hit && !inputs.skip_cache }}
       analysis-cache-hit: ${{ steps.analysis.outputs.cache-hit && !inputs.skip_cache }}
       build-cache-hit: ${{ steps.build.outputs.cache-hit && !inputs.skip_cache }}
+      py_vers_current: ${{ steps.config.outputs.py_vers_current }}
+      py_vers_lesser: ${{ steps.config.outputs.py_vers_lesser }}
+      py_vers_min: ${{ steps.config.outputs.py_vers_min }}
+      py_vers_max: ${{ steps.config.outputs.py_vers_max }}
     steps:
       - name: Lookup test result cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
@@ -98,9 +102,65 @@ jobs:
       - name: Prepare the Python environment
         if: ${{ !steps.cache.outputs.fully_cached || inputs.skip_cache }}
         uses: ./.github/actions/prepare
+        with:
+          skip_cache_restore: true
 
+      # Get configuration info, this step must not depend on anything from the prepare action
+      - name: Get configuration info
+        id: config
+        shell: bash
+        run: |
+          # Resolve the Python versions supported by the project:
+          python3 utils/pyvers.py >> $GITHUB_OUTPUT
+
+  compatibility:
+    name: Compatibility Tests on Python ${{ matrix.python_version }}
+    runs-on: ubuntu-24.04
+    needs: prebuild
+    concurrency:
+      group: compatibility-${{ matrix.python_version }}-${{ github.sha }}
+    env:
+      CI: true    
+    strategy:
+      # max-parallel: 1
+      matrix:
+        python_version: ${{ fromJSON(needs.prebuild.outputs.py_vers_lesser) }}
+        include:
+          - python_version: ${{ needs.prebuild.outputs.py_vers_min }}-lowest_deps
+    steps:
+      - name: Fetch compatibility result cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        id: compat
+        with:
+          lookup-only: true
+          path: ./reports/compatibility/${{ matrix.python_version }}
+          key: compatibility-${{ matrix.python_version }}-${{ github.sha }}
+
+      - name: Report on cache
+        if: ${{ steps.compat.outputs.cache-hit == 'true' && !inputs.skip_cache }}
+        run: |
+          echo "::notice::Skipping compatibility test for Python ${{ matrix.python_version }} due to cached result for this commit."
+
+      - name: Checkout codebase
+        if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Run compatibility test
+        if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
+        uses: ./.github/actions/tests
+        with:
+          python_version: ${{ matrix.python_version }}
+          full: false
+
+      - name: Save compatibility result cache
+        if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        with:
+          path: ./reports/compatibility/${{ matrix.python_version }}
+          key: compatibility-${{ matrix.python_version }}-${{ github.sha }}
+        
   tests:
-    name: Functional Tests
+    name: Functional Tests on Python ${{ needs.prebuild.outputs.py_vers_max }}
     runs-on: ubuntu-24.04
     needs: prebuild
     if: ${{ needs.prebuild.outputs.tests-cache-hit != 'true' }}
@@ -125,22 +185,14 @@ jobs:
         if: ${{ !steps.tests.outputs.cache-hit }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
-      - name: Prepare the Python environment
+      - name: Run the tests
         if: ${{ !steps.tests.outputs.cache-hit }}
-        uses: ./.github/actions/prepare
-
-      - name: Run unit tests
-        if: ${{ !steps.tests.outputs.cache-hit && github.event_name == 'pull_request'}}
-        shell: bash
-        run: pytest --cov-report lcov:./reports/tests/coverage.lcov
-
-      # For security and cost reasons, don't run integration tests on PRs
-      - name: Run unit and integration tests
-        if: ${{ !steps.tests.outputs.cache-hit && github.event_name != 'pull_request' }}
-        shell: bash
+        uses: ./.github/actions/tests
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: pytest --cov-report lcov:./reports/tests/coverage.lcov --plus_integration
+        with:
+          python_version: ${{ needs.prebuild.outputs.py_vers_max }}
+          full: true
 
   security:
     name: Security Checks
@@ -233,7 +285,7 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-24.04
-    needs: [prebuild, tests, security, analysis]
+    needs: [prebuild, tests, compatibility, security, analysis]
     if: ${{ !failure() && !cancelled() && needs.prebuild.outputs.build-cache-hit != 'true' && needs.prebuild.result != 'skipped' }}
     concurrency:
       group: build-${{ github.sha }}

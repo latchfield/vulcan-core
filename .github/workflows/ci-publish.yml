@@ -32,6 +32,7 @@ jobs:
       build-cache-hit: ${{ steps.build.outputs.cache-hit && !inputs.skip_cache }}
       repo_name: ${{ steps.config.outputs.repo_name }}
       project_name: ${{ steps.config.outputs.project_name }}
+      repository_url: ${{ steps.config.outputs.repository_url }}
     steps:
       - name: Sparse checkout codebase
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
@@ -50,15 +51,7 @@ jobs:
 
           # Ensure we are operating on a version tag
           if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
-            echo "::error::Publishing must be done from a version tag."
-            exit 1
-          fi
-
-          # Ensure the version in pyproject.toml matches the git tag
-          GIT_TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          PYPROJECT_VERSION=$(grep -Eo '^version\s*=\s*"[0-9.]*' pyproject.toml | cut -d'"' -f2)
-          if [[ "${GITHUB_REF#refs/tags/v}" != "$PYPROJECT_VERSION" ]]; then
-            echo "::error::Version mismatch! Git tag ($GIT_TAG_VERSION) doesn't match pyproject.toml version ($PYPROJECT_VERSION)"
+            echo "::error::Publishing must be from a version-tagged commit."
             exit 1
           fi
 

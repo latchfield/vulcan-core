@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl sudo gnupg pipx jq build-essential
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl sudo zstd gnupg pipx jq build-essential
 
 RUN useradd -m -d /home/runner -s /bin/bash runner &&\
     echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner

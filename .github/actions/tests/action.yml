@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Latchfield Technologies http://latchfield.com
+name: "Run functional tests"
+description: "Prepares the environment and runs tests for a given Python version"
+
+inputs:
+  python_version:
+    description: "Python version to test against (may end with '-lowest_deps' for lowest dependency resolution)"
+    required: true
+  full:
+    description: "Run full test suite with coverage and integration tests"
+    required: false
+    default: "false"
+    
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare the Python environment
+      uses: ./.github/actions/prepare
+
+    - name: Run tests
+      shell: bash
+      run: |
+        py_ver="${{ inputs.python_version }}"
+        resolution=()
+        if [[ "${{ inputs.python_version }}" == *"-lowest_deps" ]]; then
+          py_ver="${py_ver%-lowest_deps}"
+          resolution=(--resolution lowest-direct)
+        fi
+
+        pytest_args=(-q --no-cov -o addopts=)
+        if [[ "${{ inputs.full }}" == "true" ]]; then
+          mkdir -p ./reports/tests
+          pytest_args=(--cov-report lcov:./reports/tests/coverage.lcov)
+
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            pytest_args+=("--plus_integration")
+          fi
+        fi
+
+        uv run --isolated --python "$py_ver" "${resolution[@]}" --all-extras pytest "${pytest_args[@]}"
+
+    - name: Record compatibility result
+      shell: bash
+      run: |
+        mkdir -p ./reports/compatibility/${{ inputs.python_version }}
+        echo "pass" > ./reports/compatibility/${{ inputs.python_version }}/result.txt

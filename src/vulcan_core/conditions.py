@@ -12,7 +12,7 @@ from functools import lru_cache
 from string import Formatter
 from typing import TYPE_CHECKING, Self
 
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from vulcan_core.actions import ASTProcessor
