@@ -132,6 +132,6 @@ lab = [
 ]
 tools = [
     "tldr>=3",
-    "twine==6.1.*",
+    "twine>=6.1,<6.3",
     "rust-just==1.46.*"
 ]
