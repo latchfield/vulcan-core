@@ -127,7 +127,7 @@ test = [
     "langchain-chroma==1.1.*"
 ]
 lab = [
-    "ipykernel==6.*",
+    "ipykernel>=6,<8",
     "ipywidgets==8.1.*",
 ]
 tools = [
