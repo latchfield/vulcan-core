@@ -13,7 +13,7 @@ from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import cached_property
-from types import MappingProxyType
+from types import MappingProxyType, FunctionType
 from typing import Any, ClassVar, TypeAliasType, get_type_hints
 
 from vulcan_core.models import Fact, HasSource
@@ -148,7 +148,7 @@ class ASTProcessor[T: Callable]:
     """
 
     func: T
-    decorator: Callable
+    decorator: FunctionType
     return_type: type | TypeAliasType
     source: str = field(init=False)
     tree: Module = field(init=False)
@@ -226,7 +226,7 @@ class ASTProcessor[T: Callable]:
         else:
             # Get function metadata and validate signature
             hints = get_type_hints(self.func)
-            params = inspect.signature(self.func).parameters  # type: ignore
+            params = inspect.signature(self.func).parameters
             self._validate_signature(hints, params)
 
             # Process attributes

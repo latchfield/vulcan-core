@@ -41,7 +41,7 @@ type ReturnType = bool | Fact
 
 
 def process_ast(func: Callable[..., ReturnType]):
-    return ASTProcessor(func=func, decorator=process_ast, return_type=ReturnType)
+    return ASTProcessor(func=func, decorator=process_ast, return_type=ReturnType)  # ty:ignore[invalid-argument-type] - ty seems to have a bug with TypeAliasType in a union
 
 
 def test_prohibited_scope_lambda(biff_instance):

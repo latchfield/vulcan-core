@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
@@ -93,7 +93,7 @@ class RuleMatch:
         ts = self.timestamp
         if ts.tzinfo is not None:
             ts = ts.astimezone(UTC).replace(tzinfo=None)
-        result = {
+        result: dict[str, Any] = {
             "rule": self.rule,
             "timestamp": ts.isoformat() + "Z",
             "elapsed": round(self.elapsed, 3),
@@ -163,10 +163,10 @@ class RuleConsequence:
     """Represents a consequences of a rule action."""
 
     fact_name: str
-    attribute_name: str
-    value: Primitive | None = None
+    attribute_name: str | None = None
+    value: Primitive | dict[str, Primitive] | None = None
 
-    def to_dict(self) -> dict[str, Primitive | None]:
+    def to_dict(self) -> dict[str, Primitive | dict[str, Primitive] | None]:
         """Convert to dictionary for YAML serialization."""
 
         if self.attribute_name:
@@ -180,9 +180,9 @@ class RuleContext:
     """Represents context information for values referenced in conditions."""
 
     fact_attribute: str
-    value: str
+    value: bool
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, bool]:
         """Convert to dictionary for YAML serialization."""
         return {self.fact_attribute: self.value}
 
@@ -241,7 +241,7 @@ class ActionReporter:
         if isinstance(self.action_result, tuple):
             # Handle multiple action results
             for item in self.action_result:
-                self.consequences.extend(self._fact_to_consequence(item))
+                self.consequences.extend(self._fact_to_consequence(item))  # ty:ignore[invalid-argument-type] - ty thinks this can be a str even after guard
         else:
             self.consequences.extend(self._fact_to_consequence(self.action_result))
 
@@ -251,7 +251,8 @@ class ActionReporter:
 
         if isinstance(fact, partial):
             # Iterate over a partial's keywords to resolve attributes
-            fact_name = fact.func.__name__
+            fact_class = cast("type", fact.func)
+            fact_name = fact_class.__name__
             attributes = fact.keywords.items()
         else:
             # For complete fact updates, report all attributes include default values
@@ -410,7 +411,6 @@ class RuleFormatter:
         if condition.func.__name__ != "<lambda>":
             # Format decoratored function expressions
             expression = f"{condition.func.__name__}()"
-
             if condition.evaluated():
                 expression += f"|{condition.last_result()}|"
             else:
@@ -567,7 +567,8 @@ class Auditor:
                 warnings.append(warning_msg)
             else:
                 # Partial update: check for attribute overrides
-                fact_name = result.func.__name__
+                fact_class = cast("type", result.func)
+                fact_name = fact_class.__name__
                 for attr_name, value in result.keywords.items():
                     fact_attr = f"{fact_name}.{attr_name}"
                     if fact_attr in self._iteration.updated_facts:

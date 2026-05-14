@@ -64,7 +64,7 @@ def fact_b_instance():
 
 @pytest.fixture
 def custom_model():
-    return ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.1, max_tokens=1000)  # type: ignore[call-arg] - pyright can't see the args for some reason
+    return ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.1, max_tokens=1000)  # ty:ignore[unknown-argument] - linter can't see max_tokens for some rason
 
 
 def test_condition_lambda(foo_instance: Foo, bar_instance: Bar):
@@ -91,7 +91,7 @@ def test_condition_decorator(foo_instance: Foo, bar_instance: Bar):
 
 
 def test_complex_lambda():
-    cond = condition(lambda: (Foo.baz and (Bar.biz or Foo.bol)))
+    cond = condition(lambda: Foo.baz and (Bar.biz or Foo.bol))
     assert len(cond.facts) == 3
     assert set(cond.facts) == {"Foo.baz", "Bar.biz", "Foo.bol"}
 
