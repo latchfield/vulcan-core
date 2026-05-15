@@ -74,7 +74,7 @@ def test_rule_match_consequence_to_dict():
 def test_rule_match_context_to_dict():
     """Test RuleMatchContext serialization."""
     context = RuleContext("Foo.bar", "True")
-    assert context.to_dict() == {"Foo.bar": True}
+    assert context.to_dict() == {"Foo.bar": "True"}
 
 
 def test_rule_match_to_dict():
@@ -99,7 +99,7 @@ def test_rule_match_to_dict():
         "evaluation": "True = Foo.bar|True| or Foo.biz|False|",
         "consequences": {"Bar.baz": 23},
         "warnings": ["Test warning"],
-        "context": [{"Foo.bar": True}],
+        "context": [{"Foo.bar": "True"}],
         "rationale": "Test rationale",
     }
     assert result == expected
