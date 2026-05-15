@@ -25,7 +25,7 @@ class Action(FactHandler[ActionCallable, ActionReturn], DeclaresFacts):
 
 def action(value: ActionCallable | ActionReturn) -> Action:
     if not isinstance(value, partial) and callable(value):
-        processed = ASTProcessor[ActionCallable](value, action, ActionReturn)
+        processed = ASTProcessor[ActionCallable](value, action, ActionReturn)  # ty:ignore[invalid-argument-type] - needs to be reworked to avoid runtime checks on TypeAliasTypes
         return Action(processed.facts, processed.func)
     else:
-        return Action((), lambda: value)
+        return Action((), lambda: value)  # ty:ignore[invalid-argument-type] - We know value is an ActionReturn at this point

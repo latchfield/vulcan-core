@@ -8,7 +8,7 @@ This is a Python-based repository that provides a library and CLI tools for buil
 ### Required Before Each Commit
 1. Run `deptry ./src` to check for dependency issues. Fix all issues using `uv add` or `uv remove`.
 2. Run `ruff check --fix --unsafe-fixes --output-format=grouped` to check and fix linting issues.
-3. Run `pyright ./src` to check for type errors. Fix all reported issues.
+3. Run `ty check ./src` to check for type errors. Fix all reported issues.
 4. Run `pytest --plus_integration` to ensure all tests pass. Fix all reported issues.
 
 ### Development Flow

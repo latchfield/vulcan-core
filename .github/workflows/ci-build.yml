@@ -274,11 +274,9 @@ jobs:
         run: ruff check | tee ./reports/analysis/code-rules.txt
         shell: bash
 
-      - name: Perform Pyright typing checks
+      - name: Perform ty typing checks
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        env:
-          PYRIGHT_PYTHON_PYLANCE_VERSION: latest-release
-        run: pyright ./src | tee ./reports/analysis/typing.txt
+        run: ty check ./src | tee ./reports/analysis/typing.txt
         shell: bash
 
   build:

@@ -27,6 +27,8 @@ if TYPE_CHECKING:  # pragma: no cover - not used at runtime
 
     from langchain_core.vectorstores import VectorStoreRetriever
 
+# FIXME: Apparenlty TypeAliasTypes don't work with runtime checks. Every place this is done needs to be reworked to use classes or union of classes
+# https://discuss.python.org/t/type-aliases-dont-work-with-isinstance/104339/2
 type ActionReturn = tuple[partial[Fact] | Fact, ...] | partial[Fact] | Fact
 type ActionCallable = Callable[..., ActionReturn]
 type ConditionCallable = Callable[..., bool | None]
@@ -130,7 +132,7 @@ class Fact(ImmutableAttrAsDict, metaclass=FactMetaclass):
     Example: `new_fact = Inventory(apples=1) | partial(Inventory, oranges=2)`
     """
 
-    def __or__(self, other: partial[Self] | Self) -> Self:
+    def __or__(self, other: partial[Self] | Self) -> Self:  # ty:ignore[invalid-method-override] - Intentionally constrained
         """
         If the right hand operand is a Fact, it is returned as-is. However, if it is a partial Fact, a copy of the
         lefthand operand is created with the partial Fact's keywords applied.
@@ -149,7 +151,7 @@ class Fact(ImmutableAttrAsDict, metaclass=FactMetaclass):
             new_fact = copy(self)
             for kw, value in other.keywords.items():
                 object.__setattr__(new_fact, kw, value)
-            return new_fact  # type: ignore
+            return new_fact
 
 
 @dataclass(frozen=True)
@@ -183,12 +185,12 @@ class Similarity(Mapping[str, list[tuple[str, float]]]):
     # TODO: Figure out how to cache vectors / and results?
 
     @abstractmethod
-    def __getitem__(self, key: str) -> list[str]:
+    def __getitem__(self, key: str) -> list[str]:  # ty:ignore[invalid-method-override] - The base class is constrained
         """Vectorizes key and performs similarity search returning a list of matching."""
         raise NotImplementedError
 
     @abstractmethod
-    def __contains__(self, key: str) -> bool:
+    def __contains__(self, key: str) -> bool:  # ty:ignore[invalid-method-override] - The base class is constrained
         """Vectorizes key and performs similarity search returning a boolean if there is at least one match."""
         raise NotImplementedError
 
@@ -197,7 +199,7 @@ class Similarity(Mapping[str, list[tuple[str, float]]]):
         raise NotImplementedError
 
     @abstractmethod
-    def __iter__(self) -> str:
+    def __iter__(self) -> Iterator[str]:
         raise NotImplementedError
 
     @abstractmethod
@@ -239,7 +241,7 @@ class ProxyLazyLookup(Similarity):
         self.proxy += value
         return self
 
-    def __iter__(self) -> str:
+    def __iter__(self) -> str:  # ty:ignore[invalid-method-override] - The base class is constrained
         raise NotImplementedError
 
     def __len__(self) -> int:
@@ -264,7 +266,7 @@ class RetrieverAdapter(Similarity):
         self.store.add_documents([Document(value)])
         return self
 
-    def __iter__(self) -> str:
+    def __iter__(self) -> str:  # ty:ignore[invalid-method-override] - The base class is constrained
         raise NotImplementedError
 
     def __len__(self) -> int:

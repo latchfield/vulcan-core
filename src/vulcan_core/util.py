@@ -42,7 +42,7 @@ def is_private(key: str) -> bool:
     return key.startswith("_")
 
 
-class AttrDict(dict):
+class AttrDict(dict[str, Any]):
     def validate(self, key: str) -> str:
         if is_private(key):
             msg = f"Access denied to private attribute: {key}"
@@ -79,7 +79,7 @@ class AttrDict(dict):
     def __len__(self) -> int:
         return sum(1 for _ in self)
 
-    def __contains__(self, key: str) -> bool:
+    def __contains__(self, key: str) -> bool:  # ty:ignore[invalid-method-override] - base class is constrained to str keys
         return hasattr(self, self.validate(key))
 
     def __or__(self, other: dict) -> dict:
@@ -88,13 +88,13 @@ class AttrDict(dict):
     def __repr__(self) -> str:
         return repr(dict(self))
 
-    def keys(self) -> list[str]:
+    def keys(self) -> list[str]:  # ty:ignore[invalid-method-override] - base class is constrained to str keys
         return list(self)
 
-    def values(self) -> list[Any]:
+    def values(self) -> list[Any]:  # ty:ignore[invalid-method-override] - base class is constrained to str keys
         return [getattr(self, key) for key in self]
 
-    def items(self) -> list[tuple[str, Any]]:
+    def items(self) -> list[tuple[str, Any]]:  # ty:ignore[invalid-method-override] - base class is constrained to str keys
         return [(key, getattr(self, key)) for key in self]
 
     def get(self, key: str, default: Any = None):
@@ -106,22 +106,22 @@ class AttrDict(dict):
         return self[key]
 
     @not_implemented
-    def __delitem__(self, key: str) -> NoReturn: ...
+    def __delitem__(self, key: str) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def __ior__(self, other: dict[str, Any]) -> NoReturn: ...
+    def __ior__(self, other: dict[str, Any]) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def clear(self) -> NoReturn: ...
+    def clear(self) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def copy(self) -> NoReturn: ...
+    def copy(self) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def pop(self, key: str, defaul: Any = None) -> NoReturn: ...
+    def pop(self, key: str, defaul: Any = None) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def popitem(self) -> NoReturn: ...
+    def popitem(self) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def update(self, *args, **kwargs) -> NoReturn: ...
+    def update(self, *args, **kwargs) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator

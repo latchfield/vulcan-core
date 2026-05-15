@@ -4,12 +4,12 @@
 from datetime import UTC, datetime
 from functools import partial
 
-from langchain.messages import AIMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
 import pytest
 import yaml
+from langchain.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages.tool import tool_call
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 from vulcan_core import Fact, RuleEngine, action, condition
 from vulcan_core.reporting import (
@@ -73,8 +73,8 @@ def test_rule_match_consequence_to_dict():
 
 def test_rule_match_context_to_dict():
     """Test RuleMatchContext serialization."""
-    context = RuleContext("Foo.bar", True)
-    assert context.to_dict() == {"Foo.bar": True}
+    context = RuleContext("Foo.bar", "True")
+    assert context.to_dict() == {"Foo.bar": "True"}
 
 
 def test_rule_match_to_dict():
@@ -85,9 +85,9 @@ def test_rule_match_to_dict():
         timestamp=timestamp,
         elapsed=0.010,
         evaluation="True = Foo.bar|True| or Foo.biz|False|",
-        consequences=[RuleConsequence("Bar", "baz", 23)],
-        warnings=["Test warning"],
-        context=[RuleContext("Foo.bar", True)],
+        consequences=(RuleConsequence("Bar", "baz", 23),),
+        warnings=("Test warning",),
+        context=(RuleContext("Foo.bar", "True"),),
         rationale="Test rationale",
     )
 
@@ -99,7 +99,7 @@ def test_rule_match_to_dict():
         "evaluation": "True = Foo.bar|True| or Foo.biz|False|",
         "consequences": {"Bar.baz": 23},
         "warnings": ["Test warning"],
-        "context": [{"Foo.bar": True}],
+        "context": [{"Foo.bar": "True"}],
         "rationale": "Test rationale",
     }
     assert result == expected
@@ -134,7 +134,7 @@ def test_evaluation_report_to_yaml():
         timestamp=timestamp,
         elapsed=0.010,
         evaluation="True = Foo.bar|True|",
-        consequences=[RuleConsequence("Bar", "baz", 23)],
+        consequences=(RuleConsequence("Bar", "baz", 23),),
     )
 
     # TODO: These generated tests are horrible, fix this
@@ -334,7 +334,7 @@ def test_rule_engine_context_handling():
     # Rule that uses long/multiline values
     engine.rule(
         name="Test Context Rule",
-        when=condition(lambda: MyTestFact.long_value and MyTestFact.multiline_value),
+        when=condition(lambda: MyTestFact.long_value == MyTestFact.multiline_value),
         then=action(partial(ResultTestFact, status="This is another very long string that should go to context")),
     )
 
@@ -530,7 +530,7 @@ def test_long_string_context_extraction():
     # Rule using long string
     engine.rule(
         name="Long string test",
-        when=condition(lambda: MyTestFact.long_value and MyTestFact.multiline_value),
+        when=condition(lambda: MyTestFact.long_value == MyTestFact.multiline_value),
         then=action(partial(ResultTestFact, status="updated")),
     )
 

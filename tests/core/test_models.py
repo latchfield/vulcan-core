@@ -18,6 +18,7 @@ from vulcan_core.models import ProxyLazyLookup, RetrieverAdapter
 # TODO Remove this check once 3.14 is supported for chroma (due to its pydantic dependency)
 try:
     from langchain_chroma import Chroma
+
     CHROMA_SUPPORTED = True
 except Exception:
     CHROMA_SUPPORTED = False
@@ -135,7 +136,7 @@ def test_union_incompatible_facts():
     bar = Bar(bar="bar")
 
     with pytest.raises(TypeError):
-        foo | bar  # type: ignore
+        foo | bar
 
 
 def test_union_incompatible_partial_facts():
@@ -149,4 +150,4 @@ def test_union_incompatible_partial_facts():
     foo = Foo(foo="foo")
 
     with pytest.raises(TypeError):
-        foo | partial(Bar, baz=1)  # type: ignore
+        foo | partial(Bar, baz=1)

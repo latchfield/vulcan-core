@@ -364,7 +364,7 @@ def _detect_default_model() -> BaseChatModel:
         from langchain_openai import ChatOpenAI
 
         # Don't worry about setting a seed, it doesn't work reliably with OpenAI models
-        return ChatOpenAI(model=model_name, temperature=0.1, max_tokens=1000)  # type: ignore[call-arg] - pyright can't see the args for some reason
+        return ChatOpenAI(model=model_name, temperature=0.1, max_tokens=1000)  # ty:ignore[unknown-argument] - ty can't see the args for some reason
     else:
         msg = "Unable to import a default LLM provider. Please install `vulcan_core` with the approriate extras package or specify your custom model explicitly."
         raise ImportError(msg)

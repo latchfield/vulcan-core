@@ -324,7 +324,7 @@ def test_ai_rule_retry(engine: RuleEngine):
         def _llm_type(self) -> str:
             return "mock_model"
 
-        def bind_tools(self, *args, **kwargs) -> Runnable[LanguageModelInput, BaseMessage]:
+        def bind_tools(self, *args, **kwargs) -> Runnable[LanguageModelInput, BaseMessage]:  # ty:ignore[invalid-method-override] - Acceptable for mocking
             return self
 
         def _generate(self, *args, **kwargs) -> ChatResult:

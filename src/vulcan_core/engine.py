@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
 from vulcan_core.ast_utils import NotAFactError
@@ -112,16 +112,16 @@ class RuleEngine:
         # TODO: Figure out how to track only fact attributes that have changed, and fire on affected rules
 
         if isinstance(fact, partial):
-            fact_name = fact.func.__name__
-            fact_class = fact.func
-            if not issubclass(fact_class, Fact):  # type: ignore
+            fact_class = cast("type[Fact]", fact.func)
+            fact_name = fact_class.__name__
+            if not issubclass(fact_class, Fact):
                 raise NotAFactError(fact_class)
 
             if fact_name in self._facts:
                 self._facts[fact_name] |= fact
             else:
                 try:
-                    self._facts[fact_name] = fact()
+                    self._facts[fact_name] = cast("Fact", fact())
                 except TypeError as err:
                     msg = f"Fact '{fact_name}' is missing and lacks sufficient defaults to create from partial: {fact}"
                     raise InternalStateError(msg) from err
@@ -170,7 +170,7 @@ class RuleEngine:
         Returns:
             Iterator[str]: An iterator over the fact strings of the updated facts.
         """
-        facts = fact if isinstance(fact, tuple) else (fact,)
+        facts = (fact,) if isinstance(fact, (partial, Fact)) else fact
         updated = []
 
         for f in facts:
@@ -178,7 +178,8 @@ class RuleEngine:
 
             # Track which attributes were updated
             if isinstance(f, partial):
-                fact_name = f.func.__name__
+                fact_class = cast("type[Fact]", f.func)
+                fact_name = fact_class.__name__
                 attrs = f.keywords
             else:
                 fact_name = f.__class__.__name__

@@ -7,12 +7,18 @@
             "source.fixAll": "explicit"
         },
         "editor.formatOnType": true,
-        // "rewrap.onSave": true, // not in released version, has issues with commented code
-        "rewrap.autoWrap.enabled": true
     },
 
     "python.experiments.enabled": true,
     "python.experiments.optInto": ["pythonTestAdapter"],
+
+    "editor.inlayHints.enabled": "offUnlessPressed",
+
+    "python.analysis.enableParallelIndexing": true,
+    "python.analysis.inlayHints.callArgumentNames": "partial",
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.inlayHints.pytestParameters": true,
+    "python.analysis.inlayHints.variableTypes": true,
 
     "python.analysis.supportDocstringTemplate": true,
     "python.analysis.includeAliasesFromUserFiles": true,
@@ -32,7 +38,6 @@
 
     "testing.automaticallyOpenPeekView": "never",
     "testing.automaticallyOpenTestResults": "neverOpen",
-    "testing.openTesting": "neverOpen",
     
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false, 
@@ -94,7 +99,7 @@
     "editor.suggest.localityBonus": true,
     "editor.inlineSuggest.showToolbar": "onHover",
 
-    "chat.agent.enabled": true,
-    "github.copilot.chat.generateTests.codeLens": true,
-    "github.copilot.nextEditSuggestions.enabled": false
+    "github.copilot.nextEditSuggestions.enabled": false,
+    "jupyter.debugJustMyCode": false,
+    "debugpy.debugJustMyCode": false,
 }

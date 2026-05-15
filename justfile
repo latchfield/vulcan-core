@@ -35,7 +35,7 @@ test_pyvers *args:
 
 check:
     ruff check src/
-    pyright src/
+    ty check src/
     deptry src/
     bandit src/
 
