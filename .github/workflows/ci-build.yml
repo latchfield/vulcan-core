@@ -41,7 +41,7 @@ jobs:
       py_vers_max: ${{ steps.config.outputs.py_vers_max }}
     steps:
       - name: Lookup test result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: tests
         with:
           lookup-only: true
@@ -49,7 +49,7 @@ jobs:
           key: tests-${{ github.sha }}
 
       - name: Lookup security scan result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: security
         with:
           lookup-only: true
@@ -57,7 +57,7 @@ jobs:
           key: security-${{ github.sha }}
 
       - name: Lookup static analysis result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: analysis
         with:
           lookup-only: true
@@ -65,7 +65,7 @@ jobs:
           key: analysis-${{ github.sha }}
 
       - name: Lookup build cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: build
         with:
           lookup-only: true
@@ -128,7 +128,7 @@ jobs:
           - python_version: ${{ needs.prebuild.outputs.py_vers_min }}-lowest_deps
     steps:
       - name: Fetch compatibility result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: compat
         with:
           lookup-only: true
@@ -153,7 +153,7 @@ jobs:
 
       - name: Save compatibility result cache
         if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
-        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         with:
           path: ./reports/compatibility/${{ matrix.python_version }}
           key: compatibility-${{ matrix.python_version }}-${{ github.sha }}
@@ -169,7 +169,7 @@ jobs:
       CI: true
     steps:
       - name: Fetch test result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: tests
         with:
           path: ./reports/tests/*
@@ -202,7 +202,7 @@ jobs:
       group: security-${{ github.sha }}
     steps:
       - name: Fetch security scan result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: security
         with:
           path: ./reports/security/*
@@ -245,7 +245,7 @@ jobs:
       group: analysis-${{ github.sha }}
     steps:
       - name: Fetch static analysis result cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: analysis
         with:
           path: ./reports/analysis/*
@@ -289,7 +289,7 @@ jobs:
     steps:
       # If a version tag, cache packages for possible deploy
       - name: Fetch build cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: build
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         with:
