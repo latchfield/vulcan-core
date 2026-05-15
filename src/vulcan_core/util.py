@@ -106,22 +106,22 @@ class AttrDict(dict[str, Any]):
         return self[key]
 
     @not_implemented
-    def __delitem__(self, key: str) -> None: ...
+    def __delitem__(self, key: str) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def __ior__(self, other: dict[str, Any]) -> None: ...
+    def __ior__(self, other: dict[str, Any]) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def clear(self) -> None: ...
+    def clear(self) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def copy(self) -> None: ...
+    def copy(self) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def pop(self, key: str, defaul: Any = None) -> None: ...
+    def pop(self, key: str, defaul: Any = None) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def popitem(self) -> None: ...
+    def popitem(self) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator
 
     @not_implemented
-    def update(self, *args, **kwargs) -> None: ...
+    def update(self, *args, **kwargs) -> NoReturn: ...  # ty:ignore[empty-body] - ty is unware of the not_implemented decorator

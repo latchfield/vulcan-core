@@ -64,7 +64,7 @@ def fact_b_instance():
 
 @pytest.fixture
 def custom_model():
-    return ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.1, max_tokens=1000)  # ty:ignore[unknown-argument] - linter can't see max_tokens for some rason
+    return ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.1, max_tokens=1000)  # ty:ignore[unknown-argument] - linter can't see max_tokens for an unknown reason
 
 
 def test_condition_lambda(foo_instance: Foo, bar_instance: Bar):

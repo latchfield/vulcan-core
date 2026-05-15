@@ -112,7 +112,7 @@ class RuleEngine:
         # TODO: Figure out how to track only fact attributes that have changed, and fire on affected rules
 
         if isinstance(fact, partial):
-            fact_class = cast("type", fact.func)
+            fact_class = cast("type[Fact]", fact.func)
             fact_name = fact_class.__name__
             if not issubclass(fact_class, Fact):
                 raise NotAFactError(fact_class)
@@ -178,7 +178,7 @@ class RuleEngine:
 
             # Track which attributes were updated
             if isinstance(f, partial):
-                fact_class = cast("type", f.func)
+                fact_class = cast("type[Fact]", f.func)
                 fact_name = fact_class.__name__
                 attrs = f.keywords
             else:

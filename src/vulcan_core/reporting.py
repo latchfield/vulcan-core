@@ -180,9 +180,9 @@ class RuleContext:
     """Represents context information for values referenced in conditions."""
 
     fact_attribute: str
-    value: bool
+    value: str
 
-    def to_dict(self) -> dict[str, bool]:
+    def to_dict(self) -> dict[str, str]:
         """Convert to dictionary for YAML serialization."""
         return {self.fact_attribute: self.value}
 
@@ -251,7 +251,7 @@ class ActionReporter:
 
         if isinstance(fact, partial):
             # Iterate over a partial's keywords to resolve attributes
-            fact_class = cast("type", fact.func)
+            fact_class = cast("type[Fact]", fact.func)
             fact_name = fact_class.__name__
             attributes = fact.keywords.items()
         else:
@@ -408,7 +408,7 @@ class RuleFormatter:
 
         expression = ""
 
-        if condition.func.__name__ != "<lambda>":
+        if hasattr(condition.func, "__name__") and condition.func.__name__ != "<lambda>":
             # Format decoratored function expressions
             expression = f"{condition.func.__name__}()"
             if condition.evaluated():
@@ -416,9 +416,9 @@ class RuleFormatter:
             else:
                 expression += "|-|"
 
-        else:
+        elif hasattr(condition.func, "__source__"):
             # Format lambda expressions
-            source = condition.func.__source__
+            source = str(condition.func.__source__)
             expression = source.split("lambda:")[1].strip()
 
             # Replace fact references with values
@@ -437,6 +437,9 @@ class RuleFormatter:
 
             # Wrap lambda expressions in parentheses
             expression = f"({expression})"
+        else:
+            msg = "Unable to format condition expression: no source or name available."
+            raise ReportGenerationError(msg)
 
         return expression
 
@@ -567,7 +570,7 @@ class Auditor:
                 warnings.append(warning_msg)
             else:
                 # Partial update: check for attribute overrides
-                fact_class = cast("type", result.func)
+                fact_class = cast("type[Fact]", result.func)
                 fact_name = fact_class.__name__
                 for attr_name, value in result.keywords.items():
                     fact_attr = f"{fact_name}.{attr_name}"

@@ -9,7 +9,6 @@ from collections.abc import Callable, Iterator, Mapping
 from copy import copy
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from types import FunctionType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -28,9 +27,11 @@ if TYPE_CHECKING:  # pragma: no cover - not used at runtime
 
     from langchain_core.vectorstores import VectorStoreRetriever
 
+# FIXME: Apparenlty TypeAliasTypes don't work with runtime checks. Every place this is done needs to be reworked to use classes or union of classes
+# https://discuss.python.org/t/type-aliases-dont-work-with-isinstance/104339/2
 type ActionReturn = tuple[partial[Fact] | Fact, ...] | partial[Fact] | Fact
-type ActionCallable = FunctionType[..., ActionReturn]
-type ConditionCallable = FunctionType[..., bool | None]
+type ActionCallable = Callable[..., ActionReturn]
+type ConditionCallable = Callable[..., bool | None]
 
 
 # TODO: Consolidate with AttrDict, and/or figure out how to extende from Mapping
@@ -198,7 +199,7 @@ class Similarity(Mapping[str, list[tuple[str, float]]]):
         raise NotImplementedError
 
     @abstractmethod
-    def __iter__(self) -> list[tuple[str, float]]:  # ty:ignore[invalid-method-override] - The base class is constrained
+    def __iter__(self) -> Iterator[str]:
         raise NotImplementedError
 
     @abstractmethod
