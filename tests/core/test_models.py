@@ -13,6 +13,7 @@ from langchain_openai import OpenAIEmbeddings
 
 from vulcan_core import Fact, Similarity
 from vulcan_core.models import ProxyLazyLookup, RetrieverAdapter
+from vulcan_core.util import gcall
 
 # Optional dependencies for chroma tests
 # TODO Remove this check once 3.14 is supported for chroma (due to its pydantic dependency)
@@ -53,6 +54,14 @@ def newspaper(chroma: RetrieverAdapter) -> NewsPaper:
 @pytest.mark.skipif(not CHROMA_SUPPORTED, reason=chroma_skip_reason)
 def test_retriever_adapter(chroma: RetrieverAdapter):
     assert chroma["Oil"][0] == "Texas"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not CHROMA_SUPPORTED, reason=chroma_skip_reason)
+@pytest.mark.asyncio
+async def test_async_retriever_adapter(chroma: RetrieverAdapter):
+    value = await gcall(lambda: chroma["Oil"][0])
+    assert value == "Texas"
 
 
 @dataclass
