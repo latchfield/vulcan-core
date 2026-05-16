@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import _string  # type: ignore
+import asyncio
 import re
 from abc import abstractmethod
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import lru_cache
@@ -25,7 +27,11 @@ if TYPE_CHECKING:  # pragma: no cover - not used at runtime
 import importlib.util
 import logging
 
+from vulcan_core.util import async_or_sync, gcall
+
 logger = logging.getLogger(__name__)
+
+_speculative_evaluation: ContextVar[bool] = ContextVar("_speculative_evaluation", default=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,20 +164,37 @@ class CompoundCondition(Expression):
         left_args = self._pick_args(self.left, args)
         right_args = self._pick_args(self.right, args)
 
-        left_result = self.left(*left_args)
-        # Be sure to evaluate the right condition as a function call to preserve short-circuit evaluation
-
-        if self.operator == Operator.AND:
-            result = left_result and self.right(*right_args)
-        elif self.operator == Operator.OR:
-            result = left_result or self.right(*right_args)
-        elif self.operator == Operator.XOR:
-            result = left_result ^ self.right(*right_args)
-        else:
-            msg = (
-                f"Operator {self.operator} not implemented"  # pragma: no cover - Saftey check for future enum additions
+        if _speculative_evaluation.get():
+            results = async_or_sync(
+                await_on=lambda: asyncio.gather(
+                    gcall(self.left, *left_args),
+                    gcall(self.right, *right_args),
+                )
             )
-            raise NotImplementedError(msg)
+            left_result, right_result = results
+
+            if self.operator == Operator.AND:
+                result = left_result and right_result
+            elif self.operator == Operator.OR:
+                result = left_result or right_result
+            elif self.operator == Operator.XOR:
+                result = left_result ^ right_result
+            else:
+                msg = f"Operator {self.operator} not implemented"  # pragma: no cover - Safety check for future enum additions
+                raise NotImplementedError(msg)
+        else:
+            left_result = self.left(*left_args)
+            # Be sure to evaluate the right condition as a function call to preserve short-circuit evaluation
+
+            if self.operator == Operator.AND:
+                result = left_result and self.right(*right_args)
+            elif self.operator == Operator.OR:
+                result = left_result or self.right(*right_args)
+            elif self.operator == Operator.XOR:
+                result = left_result ^ self.right(*right_args)
+            else:
+                msg = f"Operator {self.operator} not implemented"  # pragma: no cover - Saftey check for future enum additions
+                raise NotImplementedError(msg)
 
         return not result if self.inverted else result
 
@@ -291,7 +314,10 @@ class AICondition(Condition):
         result: BooleanDecision
         for attempt in range(self.retries):
             try:
-                result = self.chain.invoke({"system": self.system_template, "user": user_prompt})
+                result = async_or_sync(
+                    await_on=lambda: self.chain.ainvoke({"system": self.system_template, "user": user_prompt}),
+                    or_call=lambda: self.chain.invoke({"system": self.system_template, "user": user_prompt}),
+                )
                 object.__setattr__(self, "_rationale", result.comments)
 
                 if not (result.result is None or result.processing_failed):

@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml(>=6.0.1,<6.2)",
     "pydantic(>=2.0,<2.14)",
     "langchain(>=1.0,<1.4)",
+    "greenlet>=3.5.0,<3.6.0",
 ]
 classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
