@@ -10,7 +10,7 @@ import urllib.request
 
 def _validate_version_string(version: str, context: str) -> None:
     """Validate that a version string only contains digits and dots.
-    
+
     Raises ValueError if the version contains wildcards or other non-numeric characters.
     """
     if not version or not all(c.isdigit() or c == "." for c in version):
@@ -29,20 +29,20 @@ def parse_version_spec(spec_str: str) -> list[tuple[str, str]]:
     """
     conditions: list[tuple[str, str]] = []
     operators = [">=", "<=", "==", "!=", ">", "<"]
-    
+
     for part in spec_str.split(","):
         part = part.strip()
-        
+
         for operator in operators:
             if part.startswith(operator):
-                version = part[len(operator):].strip()
+                version = part[len(operator) :].strip()
                 _validate_version_string(version, spec_str)
                 conditions.append((operator, version))
                 break
         else:
             msg = f"Unsupported version specifier: {part!r} in {spec_str!r}"
             raise ValueError(msg)
-    
+
     return conditions
 
 
@@ -105,7 +105,7 @@ def main() -> None:
     conditions = parse_version_spec(requires_python)
     valid_versions = sorted(
         (v for v in available_versions if version_matches(f"{v}.0", conditions)),
-        key=lambda v: tuple(map(int, v.split('.'))),
+        key=lambda v: tuple(map(int, v.split("."))),
     )
 
     other_versions = [v for v in valid_versions if v != current_version]

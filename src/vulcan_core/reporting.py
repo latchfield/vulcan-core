@@ -471,7 +471,6 @@ class Auditor:
 
     _iteration: Iteration = field(default_factory=Iteration, init=False)
     _evaluation_report: EvaluationReport | None = field(default=None, init=False)
-    _rule_stopwatch: StopWatch = field(default_factory=StopWatch, init=False)
 
     def evaluation_reset(self) -> None:
         """Reset the reporter to start a new evaluation report."""
@@ -496,9 +495,11 @@ class Auditor:
         if self._iteration.matched_rules and self._evaluation_report is not None:
             self._evaluation_report.iterations.append(self._iteration)
 
-    def rule_start(self) -> None:
+    def rule_start(self) -> StopWatch:
         """Start timing and auditing for rule execution."""
-        self._rule_stopwatch.start()
+        sw = StopWatch()
+        sw.start()
+        return sw
 
     def rule_end(
         self,
@@ -506,6 +507,7 @@ class Auditor:
         result: ActionReturn | None,
         working_memory: Mapping[str, Fact],
         *,
+        stopwatch: StopWatch,
         condition_result: bool,
     ) -> None:
         """
@@ -516,10 +518,11 @@ class Auditor:
             resolved_facts: Facts that were resolved for the rule
             result: The result of executing the action (or None if no action)
             working_memory: Current facts dictionary for context
+            stopwatch: The StopWatch token returned by rule_start()
             condition_result: The boolean result of the rule condition evaluation
         """
 
-        self._rule_stopwatch.stop()
+        stopwatch.stop()
         rule_name = rule.name or "None"
         rule_id = str(rule.id)[:8]
 
@@ -539,8 +542,8 @@ class Auditor:
         self._iteration.matched_rules.append(
             RuleMatch(
                 rule=f"{rule_id}:{rule_name}",
-                timestamp=self._rule_stopwatch.timestamp,
-                elapsed=self._rule_stopwatch.duration,
+                timestamp=stopwatch.timestamp,
+                elapsed=stopwatch.duration,
                 evaluation=formatter.expression,
                 consequences=tuple(action.consequences),
                 warnings=warnings,

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from functools import cached_property, partial
@@ -11,8 +12,10 @@ from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
 from vulcan_core.ast_utils import NotAFactError
+from vulcan_core.conditions import _speculative_evaluation
 from vulcan_core.models import DeclaresFacts, Fact
-from vulcan_core.reporting import Auditor
+from vulcan_core.reporting import Auditor, StopWatch
+from vulcan_core.util import async_or_sync, gcall
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from collections.abc import Mapping
@@ -29,6 +32,15 @@ class InternalStateError(RuntimeError):
 
 class RecursionLimitError(RuntimeError):
     """Raised when the recursion limit is reached during rule evaluation."""
+
+
+@dataclass(frozen=True, slots=True)
+class RuleEvaluation:
+    """Associates a rule with its condition evaluation result and optional audit stopwatch."""
+
+    rule: Rule
+    condition_result: bool
+    stopwatch: StopWatch | None
 
 
 @dataclass(frozen=True)
@@ -194,7 +206,77 @@ class RuleEngine:
         keys = {key.split(".")[0]: key for key in declared.facts}.values()
         return [facts[key.split(".")[0]] for key in keys]
 
-    def evaluate(self, fact: Fact | partial[Fact] | None = None, *, audit: bool = False):
+    def _collect_rules(
+        self, scope: set[str], evaluated_rules: set[UUID], facts: dict[str, Fact]
+    ) -> list[tuple[Rule, list[Fact]]]:
+        """Return rules whose fact dependencies intersect the current scope, paired with their resolved facts.
+
+        Only rules not already present in `evaluated_rules` are considered. Rules that reference facts absent from
+        `facts` are silently skipped. Each rule that is selected is added to `evaluated_rules` to prevent re-evaluation
+        within the same iteration.
+
+        Args:
+            scope: Fact attribute strings (e.g. `Subject.name`) that changed in the current iteration.
+            evaluated_rules: Rule IDs already evaluated this iteration. Updated in place.
+            facts: Working memory used to resolve fact arguments for condition calls.
+
+        Returns:
+            Ordered list of `(rule, resolved_facts)` pairs ready for condition evaluation.
+        """
+        to_evaluate: list[tuple[Rule, list[Fact]]] = []
+        for fact_str, rules in self._rules.items():
+            if fact_str in scope:
+                for rule in rules:
+                    if rule.id in evaluated_rules:
+                        continue
+                    evaluated_rules.add(rule.id)
+                    try:
+                        resolved_facts = self._resolve_facts(rule.when, facts)
+                    except KeyError as e:
+                        logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
+                        continue
+                    to_evaluate.append((rule, resolved_facts))
+        return to_evaluate
+
+    def _apply_actions(self, evaluations: list[RuleEvaluation], facts: dict[str, Fact], *, audit: bool) -> set[str]:
+        """Execute actions for each evaluated rule and return the resulting consequence scope.
+
+        For each evaluation, fires `then` when the condition was met, or `inverse` when it was not (if an inverse is
+        defined). Updated facts are written to working memory. When `audit` is enabled, timing and outcome data are
+        recorded for each rule.
+
+        Args:
+            evaluations: Condition results paired with their rules and audit stopwatches.
+            facts: Working memory used to resolve fact arguments for action calls.
+            audit: When true, records rule outcomes and elapsed time via the auditor.
+
+        Returns:
+            Fact attribute strings for every fact updated by an action, forming the scope for the next iteration. Empty
+            when no actions produced changes.
+        """
+        consequence: set[str] = set()
+        for ev in evaluations:
+            action = ev.rule.then if ev.condition_result else (ev.rule.inverse or None)
+
+            action_result = None
+            if action:
+                action_result = action(*self._resolve_facts(action, facts))
+                updated_facts = self._update_facts(action_result)
+                consequence.update(updated_facts)
+
+            if audit and ev.stopwatch is not None:
+                self._audit.rule_end(
+                    ev.rule, action_result, facts, stopwatch=ev.stopwatch, condition_result=ev.condition_result
+                )
+
+        return consequence
+
+    def evaluate(
+        self,
+        fact: Fact | partial[Fact] | None = None,
+        *,
+        audit: bool = False,
+    ) -> None:
         """
         Cascading evaluation of rules based on the facts in working memory.
 
@@ -205,7 +287,6 @@ class RuleEngine:
             audit: Enables tracing for explanbility report generation
         """
         evaluated_rules: set[UUID] = set()
-        consequence: set[str] = set()
 
         # TODO: Create an internal consistency check to determine if all referenced Facts are present?
 
@@ -215,11 +296,11 @@ class RuleEngine:
 
         # TODO: Check whether fact attributes have actually changed, and only fire rules that are affected
         if fact:
-            scope = self._update_facts(fact)
+            scope: set[str] = set(self._update_facts(fact))
         else:
             # By default, evaluate all facts
             fact_list = self._facts.values()
-            scope = {f"{fact.__class__.__name__}.{attr}" for fact in fact_list for attr in vars(fact)}
+            scope = {f"{f.__class__.__name__}.{attr}" for f in fact_list for attr in vars(f)}
 
         if audit:
             self._audit.evaluation_reset()
@@ -236,53 +317,53 @@ class RuleEngine:
             if audit:
                 self._audit.iteration_start()
 
-            # Evaluate matching rules
-            for fact_str, rules in self._rules.items():
-                if fact_str in scope:
-                    for rule in rules:
-                        # Skip the rule if it was already evaluated in this iteration (due to matching on another Fact)
-                        if rule.id in evaluated_rules:
-                            continue
-                        evaluated_rules.add(rule.id)
+            pending = self._collect_rules(scope, evaluated_rules, facts_snapshot)
+            stopwatches = [self._audit.rule_start() if audit else None for _ in pending]
 
-                        # Skip if not all facts required by the rule are present
-                        try:
-                            resolved_facts = self._resolve_facts(rule.when, facts_snapshot)
-                        except KeyError as e:
-                            logger.debug("Rule %s (%s) skipped due to missing fact: %s", rule.name, rule.id, str(e))
-                            continue
+            results = async_or_sync(
+                await_on=lambda rules=pending: asyncio.gather(*(gcall(rule.when, *facts) for rule, facts in rules)),
+                or_call=lambda rules=pending: [rule.when(*facts) for rule, facts in rules],
+            )
 
-                        if audit:
-                            self._audit.rule_start()
-
-                        # Evaluate the rule and prepare the aciton
-                        action = None
-                        condition_result = rule.when(*resolved_facts)
-                        if condition_result:
-                            action = rule.then
-                        elif rule.inverse:
-                            action = rule.inverse
-
-                        # Evaluate the action and update the consequences
-                        action_result = None
-                        if action:
-                            action_result = action(*self._resolve_facts(action, facts_snapshot))
-                            facts = self._update_facts(action_result)
-                            consequence.update(facts)
-
-                        if audit:
-                            self._audit.rule_end(rule, action_result, facts_snapshot, condition_result=condition_result)
+            evaluations = [
+                RuleEvaluation(rule, result, sw)
+                for (rule, _), result, sw in zip(pending, results, stopwatches, strict=True)
+            ]
+            new_consequence = self._apply_actions(evaluations, facts_snapshot, audit=audit)
 
             if audit:
                 self._audit.iteration_end()
 
             # Check for next iteration
-            if consequence:
-                scope = consequence
-                consequence = set()
+            if new_consequence:
+                scope = new_consequence
                 evaluated_rules.clear()
             else:
                 break
+
+    async def aevaluate(
+        self, fact: Fact | partial[Fact] | None = None, *, audit: bool = False, speculative: bool = False
+    ) -> None:
+        """
+        Async cascading evaluation of rules based on the facts in working memory.
+
+        Runs condition evaluation concurrently using asyncio.gather, enabling async I/O (such as AI
+        conditions) to execute in parallel across rules within each iteration. Action execution remains
+        sequential.
+
+        If provided a fact, will update and evaluate immediately. Otherwise all rules will be evaluated.
+
+        Args:
+            fact: Optional fact to update and evaluate immediately
+            audit: Enables tracing for explanbility report generation
+            speculative: Enables speculative evaluation, which evaluates all terms of complex conditions eagerly rather
+              than using short-circuit logic. This can provide faster total execution, but may increase LLM costs.
+        """
+        kwargs = locals().copy()
+        del kwargs["self"]
+        del kwargs["speculative"]  # Not an option for sync evaluation
+        _speculative_evaluation.set(speculative)
+        return await gcall(self.evaluate, **kwargs)
 
     def yaml_report(self) -> str:
         return self._audit.generate_yaml_report()

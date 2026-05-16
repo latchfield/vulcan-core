@@ -20,7 +20,7 @@ from typing import (
 
 from langchain_core.documents import Document
 
-from vulcan_core.util import is_private
+from vulcan_core.util import async_or_sync, is_private
 
 if TYPE_CHECKING:  # pragma: no cover - not used at runtime
     from functools import partial
@@ -187,24 +187,19 @@ class Similarity(Mapping[str, list[tuple[str, float]]]):
     @abstractmethod
     def __getitem__(self, key: str) -> list[str]:  # ty:ignore[invalid-method-override] - The base class is constrained
         """Vectorizes key and performs similarity search returning a list of matching."""
-        raise NotImplementedError
 
     @abstractmethod
     def __contains__(self, key: str) -> bool:  # ty:ignore[invalid-method-override] - The base class is constrained
         """Vectorizes key and performs similarity search returning a boolean if there is at least one match."""
-        raise NotImplementedError
 
     @abstractmethod
-    def __iadd__(self, value: str) -> Self:
-        raise NotImplementedError
+    def __iadd__(self, value: str) -> Self: ...
 
     @abstractmethod
-    def __iter__(self) -> Iterator[str]:
-        raise NotImplementedError
+    def __iter__(self) -> Iterator[str]: ...
 
     @abstractmethod
-    def __len__(self) -> int:
-        raise NotImplementedError
+    def __len__(self) -> int: ...
 
 
 class ProxyInitializationError(Exception):
@@ -256,14 +251,23 @@ class RetrieverAdapter(Similarity):
 
     def __getitem__(self, key: str) -> list[str]:
         """Vectorizes key and performs similarity search returning a list of matching content."""
-        return [doc.page_content for doc in self.store.invoke(key)]
+        result = async_or_sync(
+            await_on=lambda: self.store.ainvoke(key),
+            or_call=lambda: self.store.invoke(key),
+        )
+
+        return [doc.page_content for doc in result]
 
     def __contains__(self, key: str) -> bool:
         """Vectorizes key and performs similarity search returning a boolean if there is at least one match."""
         raise NotImplementedError
 
     def __iadd__(self, value: str) -> Self:
-        self.store.add_documents([Document(value)])
+        async_or_sync(
+            await_on=lambda: self.store.aadd_documents([Document(value)]),
+            or_call=lambda: self.store.add_documents([Document(value)]),
+        )
+
         return self
 
     def __iter__(self) -> str:  # ty:ignore[invalid-method-override] - The base class is constrained
