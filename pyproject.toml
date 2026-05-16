@@ -32,7 +32,7 @@ repository = "https://github.com/latchfield/vulcan-core"
 documentation = "https://latchfield.com/vulcan/docs"
 
 [build-system]
-requires = ["hatchling==1.28.*","hatch-vcs==0.5.0"]
+requires = ["hatchling>=1.28,<1.30","hatch-vcs==0.5.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
