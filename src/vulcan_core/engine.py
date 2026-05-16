@@ -356,7 +356,8 @@ class RuleEngine:
         Args:
             fact: Optional fact to update and evaluate immediately
             audit: Enables tracing for explanbility report generation
-            speculative: Enables speculative evaluation, which evaluates all terms of complex conditions eagerly rather than using short-circuit logic. This can provide faster total execution, but when using LLMs.
+            speculative: Enables speculative evaluation, which evaluates all terms of complex conditions eagerly rather
+              than using short-circuit logic. This can provide faster total execution, but may increase LLM costs.
         """
         kwargs = locals().copy()
         del kwargs["self"]

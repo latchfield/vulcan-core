@@ -193,7 +193,7 @@ class CompoundCondition(Expression):
             elif self.operator == Operator.XOR:
                 result = left_result ^ self.right(*right_args)
             else:
-                msg = f"Operator {self.operator} not implemented"  # pragma: no cover - Saftey check for future enum additions
+                msg = f"Operator {self.operator} not implemented"  # pragma: no cover - Safety check for future enum additions
                 raise NotImplementedError(msg)
 
         return not result if self.inverted else result
