@@ -23,7 +23,7 @@ classifiers = [
 
 [project.optional-dependencies]
 openai = [
-  "langchain-openai(>=1.0,<1.3)"
+  "langchain-openai>=1.0,<1.4"
 ]
 
 [project.urls]
