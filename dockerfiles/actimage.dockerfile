@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Latchfield Technologies http://latchfield.com
-FROM ubuntu:24.04
+FROM ubuntu:25.10
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
