@@ -95,7 +95,7 @@ jobs:
           echo "fully_cached=${{ steps.tests.outputs.cache-hit && steps.security.outputs.cache-hit && steps.analysis.outputs.cache-hit }}" >> $GITHUB_OUTPUT
 
       - name: Checkout essential prebuild files
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 #v6.1.0
 
       # Cache warmup for parallel dependent jobs
       - name: Prepare the Python environment
@@ -142,7 +142,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 #v6.1.0
 
       - name: Run compatibility test
         if: ${{ steps.compat.outputs.cache-hit != 'true' || inputs.skip_cache }}
@@ -182,7 +182,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.tests.outputs.cache-hit }}
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 #v6.1.0
 
       - name: Run the tests
         if: ${{ !steps.tests.outputs.cache-hit }}
@@ -215,7 +215,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.security.outputs.cache-hit }}
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 #v6.1.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.security.outputs.cache-hit }}
@@ -258,7 +258,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.analysis.outputs.cache-hit }}
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 #v6.1.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.analysis.outputs.cache-hit }}
@@ -304,7 +304,7 @@ jobs:
 
       - name: Checkout codebase
         if: ${{ !steps.build.outputs.cache-hit }}
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 #v6.1.0
 
       - name: Prepare the Python environment
         if: ${{ !steps.build.outputs.cache-hit }}
