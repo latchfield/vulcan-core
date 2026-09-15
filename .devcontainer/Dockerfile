@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Latchfield Technologies http://latchfield.com
 
-FROM mcr.microsoft.com/devcontainers/base:2.1-trixie
+FROM mcr.microsoft.com/devcontainers/base:2.2-trixie
 
 # Configure apt for caching and non-interactive use and enable additional repos
 ARG DEBIAN_FRONTEND=noninteractive
